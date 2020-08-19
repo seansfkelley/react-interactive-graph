@@ -1,6 +1,7 @@
 {
   "name": "react-interactive-graph",
   "version": "0.0.0",
+  "description": "View and edit interactive node-edge graphs.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/seansfkelley/synology-download-manager.git"
@@ -8,5 +9,12 @@
   "license": "MIT",
   "scripts": {
     "test": "echo no tests yet"
+  },
+  "devDependencies": {
+    "@types/react": "^16.9.46",
+    "@types/react-dom": "^16.9.8",
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1",
+    "typescript": "^3.9.7"
   }
 }
