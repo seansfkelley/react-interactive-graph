@@ -1,0 +1,25 @@
+# TODO
+
+- render gridded background
+- pan/zoom mouse interactions
+  - include pinching gesture if possible
+- pan/zoom controls
+- background click handler
+- selection:
+  - does this need to be built-in, or can simple click handlers on custom render functions do it?
+  - what about for edges?
+- deletion:
+  - does this need to be built-in, or can the consumer do selection/keypress handling themselves?
+- context menus?
+- edge hover: how to only mark hovering when near the actual line?
+- grid customization
+- how to change the appearance of nodes that are being hovered for edge creation?
+- snap-to-grid
+- one-time autolayouts (or should these be "plugins"?)
+  - best-effort DAG
+  - spring layout
+- box select
+- perf?
+- maybe wrap core graph component with some sane defaults like for selection and deletion?
+- DOM rendering?
+- canvas rendering?
