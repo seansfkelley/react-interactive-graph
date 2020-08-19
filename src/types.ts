@@ -1,7 +1,10 @@
-export interface Node {
-  id: string;
+export interface Position {
   x: number;
   y: number;
+}
+
+export interface Node extends Position {
+  id: string;
 }
 
 export interface Edge {

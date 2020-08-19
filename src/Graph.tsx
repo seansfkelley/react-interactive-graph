@@ -1,18 +1,24 @@
 import * as React from "react";
-import type { Node, Edge } from "./types";
+import type { Node, Edge, Position } from "./types";
 
 export interface Props<N extends Node = Node, E extends Edge = Edge> {
   nodes: N[];
   edges: E[];
-  renderNode?: (n: N) => React.ReactNode;
-  renderEdge?: (e: E, source: N, target: N) => React.ReactNode;
-  shouldStartDrag?: (e: React.MouseEvent, n: N) => boolean;
-  onDragStart?: (e: React.MouseEvent, n: N) => void;
-  onDragMove?: (e: React.MouseEvent, n: N, x: number, y: number) => void;
-  onDragEnd?: (e: React.MouseEvent, n: N, x: number, y: number) => void;
+  renderNode?: (node: N) => React.ReactNode;
+  renderEdge?: (edge: E, source: N, target: N) => React.ReactNode;
+  renderIncompleteEdge?: (source: N, target: Position) => React.ReactNode;
+
+  shouldStartNodeDrag?: (e: React.MouseEvent, node: N) => boolean;
+  onNodeDragStart?: (e: React.MouseEvent, node: N) => void;
+  onNodeDragMove?: (e: React.MouseEvent, node: N, x: number, y: number) => void;
+  onNodeDragEnd?: (e: React.MouseEvent, node: N, x: number, y: number) => void;
+
+  shouldStartCreateEdge?: (e: React.MouseEvent, node: N) => boolean;
+  onStartCreateEdge?: (source: N) => void;
+  onCreateEdge?: (source: N, target: N) => void;
 }
 
-export function defaultShouldStartDrag(e: React.MouseEvent) {
+export function defaultShouldStartNodeDrag(e: React.MouseEvent) {
   return e.buttons === 1;
 }
 
@@ -37,7 +43,7 @@ interface DragState {
 export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props<N, E>) {
   const renderNode = props.renderNode || defaultRenderNode;
   const renderEdge = props.renderEdge || defaultRenderEdge;
-  const shouldStartDrag = props.shouldStartDrag || defaultShouldStartDrag;
+  const shouldStartNodeDrag = props.shouldStartNodeDrag || defaultShouldStartNodeDrag;
 
   const [currentDrag, setCurrentDrag] = React.useState<DragState | undefined>();
 
@@ -52,8 +58,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
       if (currentDrag == null) {
         // TODO: Non-null assertion okay?
         const node = nodesById[e.currentTarget.dataset.id!];
-        if (shouldStartDrag(e, node)) {
-          props.onDragStart?.(e, node);
+        if (shouldStartNodeDrag(e, node)) {
+          props.onNodeDragStart?.(e, node);
           setCurrentDrag({
             nodeId: node.id,
             startX: e.pageX,
@@ -64,14 +70,14 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
         }
       }
     },
-    [currentDrag, shouldStartDrag, props.onDragStart, nodesById],
+    [currentDrag, shouldStartNodeDrag, props.onNodeDragStart, nodesById],
   );
 
   const maybeDrag = React.useCallback(
     (e: React.MouseEvent) => {
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
-        props.onDragMove?.(
+        props.onNodeDragMove?.(
           e,
           node,
           e.pageX - currentDrag.startX + node.x,
@@ -87,7 +93,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
     (e: React.MouseEvent) => {
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
-        props.onDragEnd?.(
+        props.onNodeDragEnd?.(
           e,
           node,
           e.pageX - currentDrag.startX + node.x,
