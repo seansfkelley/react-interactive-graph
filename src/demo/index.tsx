@@ -14,7 +14,7 @@ function render() {
     <Graph
       nodes={nodes}
       edges={edges}
-      onDragEnd={(_, n, x, y) => {
+      onNodeDragEnd={(_, n, x, y) => {
         nodes = nodes.map((node) => (node.id === n.id ? { ...node, x, y } : node));
         render();
       }}
