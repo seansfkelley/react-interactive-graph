@@ -5,6 +5,7 @@
     "target": "es2020",
     "rootDir": "src",
     "outDir": "lib",
+    "jsx": "react",
     "sourceMap": true,
     "declaration": true,
     "experimentalDecorators": true,
