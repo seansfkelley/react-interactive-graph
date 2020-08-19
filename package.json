@@ -1,0 +1,9 @@
+{
+  "name": "react-interactive-graph",
+  "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seansfkelley/synology-download-manager.git"
+  },
+  "license": "MIT"
+}
