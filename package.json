@@ -5,5 +5,8 @@
     "type": "git",
     "url": "git+https://github.com/seansfkelley/synology-download-manager.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "test": "echo no tests yet"
+  }
 }
