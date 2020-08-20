@@ -12,7 +12,7 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   edges: E[];
 
   defs?: React.ReactNode[];
-  grid?: Grid | false;
+  grid?: Grid | boolean;
 
   minZoom?: number;
   maxZoom?: number;
@@ -108,8 +108,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   const renderEdge = props.renderEdge ?? defaultRenderEdge;
   const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
   const shouldStartPan = props.shouldStartPan ?? defaultShouldStartPan;
-  const gridDotSize = (props.grid ? props.grid?.dotSize : undefined) ?? 2;
-  const gridSpacing = (props.grid ? props.grid?.spacing : undefined) ?? 50;
+  const gridDotSize = (typeof props.grid !== "boolean" ? props.grid?.dotSize : undefined) ?? 2;
+  const gridSpacing = (typeof props.grid !== "boolean" ? props.grid?.spacing : undefined) ?? 50;
 
   const [currentDrag, setCurrentDrag] = React.useState<DragState | undefined>();
 

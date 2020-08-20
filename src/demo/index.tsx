@@ -2,27 +2,37 @@ import * as React from "react";
 import * as ReactDOM from "react-dom";
 import { Graph, Node, Edge } from "../";
 
-let nodes: Node[] = [
-  { id: "1", x: 0, y: 0 },
-  { id: "2", x: 100, y: 100 },
-];
+export function Demo(props: {}) {
+  const [nodes, setNodes] = React.useState<Node[]>([
+    { id: "1", x: 0, y: 0 },
+    { id: "2", x: 100, y: 100 },
+  ]);
+  const [edges, setEdges] = React.useState<Edge[]>([{ sourceId: "1", targetId: "2" }]);
 
-let edges: Edge[] = [{ sourceId: "1", targetId: "2" }];
+  const [gridEnabled, setGridEnabled] = React.useState(true);
 
-function render() {
-  ReactDOM.render(
-    <Graph
-      style={{ width: 400, height: 600 }}
-      nodes={nodes}
-      edges={edges}
-      onNodeDragEnd={(_, n, x, y) => {
-        nodes = nodes.map((node) => (node.id === n.id ? { ...node, x, y } : node));
-        render();
-      }}
-    />,
-    document.getElementById("container"),
+  return (
+    <div>
+      <div>
+        <input
+          type="checkbox"
+          checked={gridEnabled}
+          onChange={() => {
+            setGridEnabled(!gridEnabled);
+          }}
+        />
+      </div>
+      <Graph
+        style={{ width: 400, height: 600 }}
+        grid={gridEnabled}
+        nodes={nodes}
+        edges={edges}
+        onNodeDragEnd={(_, n, x, y) => {
+          setNodes(nodes.map((node) => (node.id === n.id ? { ...node, x, y } : node)));
+        }}
+      />
+    </div>
   );
 }
 
-// TODO: Wrap this in a top-level component.
-render();
+ReactDOM.render(<Demo />, document.getElementById("container"));
