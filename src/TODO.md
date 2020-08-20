@@ -1,7 +1,5 @@
 # TODO
 
-- pan/zoom mouse interactions
-  - include pinching gesture if possible
 - pan/zoom controls
 - background click handler
 - selection:

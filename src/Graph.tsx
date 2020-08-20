@@ -1,4 +1,5 @@
 import * as React from "react";
+import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 import type { Node, Edge, Position } from "./types";
 
 export interface Props<N extends Node = Node, E extends Edge = Edge> {
@@ -10,7 +11,8 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   gridSpacing?: number;
 
   shouldStartPan?: (e: React.MouseEvent) => boolean;
-  shouldZoom?: (e: React.MouseEvent) => boolean;
+  // TODO
+  // shouldZoom?: (e: React.MouseEvent) => boolean;
 
   renderNode?: (node: N) => React.ReactNode;
   renderEdge?: (edge: E, source: N, target: N) => React.ReactNode;
@@ -46,15 +48,15 @@ export function defaultRenderEdge(e: Edge, source: Node, target: Node) {
 
 interface DragState {
   nodeId: string;
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
+  screenSpaceStartX: number;
+  screenSpaceStartY: number;
+  screenSpaceCurrentX: number;
+  screenSpaceCurrentY: number;
 }
 
 interface PanState {
-  lastX: number;
-  lastY: number;
+  screenSpaceLastX: number;
+  screenSpaceLastY: number;
 }
 
 export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props<N, E>) {
@@ -78,6 +80,15 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
     };
   }, []);
 
+  // Note that zooming and panning are handled separately. This is because, while we want to zoom
+  // with all the normal interactions always (scroll, pinch), we only want to pan when interacting
+  // with the background. This means we can't attach panzoom to a single element and be done with
+  // it. Furthermore, we want to have a single instance, because panning and zooming is stateful
+  // and we want to have a single source of truth. Therefore, we pick the element that should
+  // undergo the view transforms to host panzoom, and we forward pan events to it manually.
+  const panzoom = React.useRef<PanzoomObject | undefined>();
+  const currentPan = React.useRef<PanState | undefined>();
+
   const renderNode = props.renderNode ?? defaultRenderNode;
   const renderEdge = props.renderEdge ?? defaultRenderEdge;
   const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
@@ -86,9 +97,6 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   const gridSpacing = props.gridSpacing ?? 50;
 
   const [currentDrag, setCurrentDrag] = React.useState<DragState | undefined>();
-  const [currentPan, setCurrentPan] = React.useState<PanState | undefined>();
-  const [viewTranslation, setViewTranslation] = React.useState({ x: 0, y: 0 });
-  const [viewZoom, setViewZoom] = React.useState(1);
 
   const nodesById = React.useMemo(() => {
     const keyed: Record<string, N> = {};
@@ -98,7 +106,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
 
   const onBackgroundMouseDown = React.useCallback((e: React.MouseEvent<SVGElement>) => {
     if (shouldStartPan(e)) {
-      setCurrentPan({ lastX: e.screenX, lastY: e.screenY });
+      currentPan.current = { screenSpaceLastX: e.screenX, screenSpaceLastY: e.screenY };
     }
   }, []);
 
@@ -108,13 +116,14 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
         // TODO: Non-null assertion okay?
         const node = nodesById[e.currentTarget.dataset.id!];
         if (shouldStartNodeDrag(e, node)) {
+          const { screenX, screenY } = e;
           props.onNodeDragStart?.(e, node);
           setCurrentDrag({
             nodeId: node.id,
-            startX: e.screenX,
-            startY: e.screenY,
-            currentX: e.screenX,
-            currentY: e.screenY,
+            screenSpaceStartX: screenX,
+            screenSpaceStartY: screenY,
+            screenSpaceCurrentX: screenX,
+            screenSpaceCurrentY: screenY,
           });
         }
       }
@@ -123,56 +132,70 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   );
 
   const onContainerScroll = React.useCallback((e: React.WheelEvent) => {
-    const { deltaY } = e;
-    setViewZoom((zoom) => zoom - deltaY / 1000);
+    panzoom.current?.zoomWithWheel(e.nativeEvent);
   }, []);
 
   onDocumentMouseMove.current = React.useCallback(
     (e: MouseEvent) => {
+      const { screenX, screenY } = e;
+      const scale = panzoom.current?.getScale() ?? 1;
+
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
         props.onNodeDragMove?.(
           e,
           node,
-          e.screenX - currentDrag.startX + node.x,
-          e.screenY - currentDrag.startY + node.y,
+          (screenX - currentDrag.screenSpaceStartX) / scale + node.x,
+          (screenY - currentDrag.screenSpaceStartY) / scale + node.y,
         );
-        setCurrentDrag({ ...currentDrag, currentX: e.screenX, currentY: e.screenY });
+        setCurrentDrag({
+          ...currentDrag,
+          screenSpaceCurrentX: screenX,
+          screenSpaceCurrentY: screenY,
+        });
       }
 
-      if (currentPan) {
-        const { screenX, screenY } = e;
-
-        setCurrentPan({
-          lastX: screenX,
-          lastY: screenY,
-        });
-        setViewTranslation(({ x, y }) => ({
-          x: x + screenX - currentPan.lastX,
-          y: y + screenY - currentPan.lastY,
-        }));
+      if (currentPan.current) {
+        panzoom.current?.pan(
+          (screenX - currentPan.current.screenSpaceLastX) / scale,
+          (screenY - currentPan.current.screenSpaceLastY) / scale,
+          { relative: true, force: true },
+        );
+        currentPan.current = {
+          screenSpaceLastX: screenX,
+          screenSpaceLastY: screenY,
+        };
       }
     },
-    [currentDrag, nodesById, currentPan],
+    [currentDrag, nodesById],
   );
 
   onDocumentMouseUp.current = React.useCallback(
     (e: MouseEvent) => {
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
+        const scale = panzoom.current?.getScale() ?? 1;
         props.onNodeDragEnd?.(
           e,
           node,
-          e.screenX - currentDrag.startX + node.x,
-          e.screenY - currentDrag.startY + node.y,
+          (e.screenX - currentDrag.screenSpaceStartX) / scale + node.x,
+          (e.screenY - currentDrag.screenSpaceStartY) / scale + node.y,
         );
         setCurrentDrag(undefined);
       }
 
-      setCurrentPan(undefined);
+      currentPan.current = undefined;
     },
     [currentDrag, nodesById],
   );
+
+  // This MUST have a stable identity, otherwise it gets called on every render; I guess because
+  // React wants to make sure that as the function identity changes it's always been called?
+  const { current: setRef } = React.useRef((e: SVGGElement) => {
+    panzoom.current = e ? Panzoom(e, { disablePan: true, cursor: "default" }) : undefined;
+  });
+
+  const scale = panzoom.current?.getScale() ?? 1;
 
   return (
     <svg onWheel={onContainerScroll}>
@@ -182,9 +205,10 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
           <circle cx={gridSpacing / 2} cy={gridSpacing / 2} r={gridDotSize}></circle>
         </pattern>
       </defs>
-      <g transform={`translate(${viewTranslation.x}, ${viewTranslation.y}) scale(${viewZoom})`}>
+      <g ref={setRef}>
         {/* TODO: Making a huge rect is kind of a cheat. Can we make it functionally infinite somehow? */}
         <rect
+          className="panzoom-exclude"
           fill="url(#grid)"
           x="-500"
           y="-500"
@@ -201,32 +225,48 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
             if (currentDrag.nodeId === source.id) {
               source = {
                 ...source,
-                x: currentDrag.currentX - currentDrag.startX + source.x,
-                y: currentDrag.currentY - currentDrag.startY + source.y,
+                x:
+                  (currentDrag.screenSpaceCurrentX - currentDrag.screenSpaceStartX) / scale +
+                  source.x,
+                y:
+                  (currentDrag.screenSpaceCurrentY - currentDrag.screenSpaceStartY) / scale +
+                  source.y,
               };
             }
             if (currentDrag.nodeId === target.id) {
               target = {
                 ...target,
-                x: currentDrag.currentX - currentDrag.startX + target.x,
-                y: currentDrag.currentY - currentDrag.startY + target.y,
+                x:
+                  (currentDrag.screenSpaceCurrentX - currentDrag.screenSpaceStartX) / scale +
+                  target.x,
+                y:
+                  (currentDrag.screenSpaceCurrentY - currentDrag.screenSpaceStartY) / scale +
+                  target.y,
               };
             }
           }
 
           return (
-            <g key={e.id ?? `${e.sourceId} ~~~ ${e.targetId}`}>{renderEdge(e, source, target)}</g>
+            <g key={e.id ?? `${e.sourceId} ~~~ ${e.targetId}`} className="panzoom-exclude">
+              {renderEdge(e, source, target)}
+            </g>
           );
         })}
         {props.nodes.map((n) => {
           const transform =
             currentDrag?.nodeId === n.id
-              ? `translate(${currentDrag.currentX - currentDrag.startX}, ${
-                  currentDrag.currentY - currentDrag.startY
-                })`
+              ? `translate(${
+                  (currentDrag.screenSpaceCurrentX - currentDrag.screenSpaceStartX) / scale
+                }, ${(currentDrag.screenSpaceCurrentY - currentDrag.screenSpaceStartY) / scale})`
               : undefined;
           return (
-            <g key={n.id} data-id={n.id} onMouseDown={onNodeMouseDown} transform={transform}>
+            <g
+              key={n.id}
+              data-id={n.id}
+              onMouseDown={onNodeMouseDown}
+              transform={transform}
+              className="panzoom-exclude"
+            >
               {renderNode(n)}
             </g>
           );

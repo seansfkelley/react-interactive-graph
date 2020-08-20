@@ -22,5 +22,8 @@
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
     "typescript": "^3.9.7"
+  },
+  "dependencies": {
+    "@panzoom/panzoom": "^4.3.1"
   }
 }
