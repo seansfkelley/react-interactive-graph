@@ -12,6 +12,7 @@ let edges: Edge[] = [{ sourceId: "1", targetId: "2" }];
 function render() {
   ReactDOM.render(
     <Graph
+      style={{ width: 400, height: 600 }}
       nodes={nodes}
       edges={edges}
       onNodeDragEnd={(_, n, x, y) => {

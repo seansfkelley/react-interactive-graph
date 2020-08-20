@@ -26,6 +26,9 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   shouldStartCreateEdge?: (e: React.MouseEvent, node: N) => boolean;
   onStartCreateEdge?: (source: N) => void;
   onCreateEdge?: (source: N, target: N) => void;
+
+  className?: string;
+  style?: React.SVGAttributes<SVGSVGElement>["style"];
 }
 
 export function defaultShouldStartPan(e: React.MouseEvent) {
@@ -198,7 +201,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   const scale = panzoom.current?.getScale() ?? 1;
 
   return (
-    <svg onWheel={onContainerScroll}>
+    <svg onWheel={onContainerScroll} className={props.className} style={props.style}>
       <defs>
         {props.defs}
         <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
