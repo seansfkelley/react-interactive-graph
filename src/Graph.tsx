@@ -10,6 +10,10 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   gridDotSize?: number;
   gridSpacing?: number;
 
+  minZoom?: number;
+  maxZoom?: number;
+  zoomSpeed?: number;
+
   shouldStartPan?: (e: React.MouseEvent) => boolean;
   // TODO
   // shouldZoom?: (e: React.MouseEvent) => boolean;
@@ -48,6 +52,10 @@ export function defaultRenderEdge(e: Edge, source: Node, target: Node) {
     <path d={`M${source.x},${source.y}L${target.x},${target.y}`} stroke="grey" strokeWidth={2} />
   );
 }
+
+export const DEFAULT_MIN_ZOOM = 0.25;
+export const DEFAULT_MAX_ZOOM = 2;
+export const DEFAULT_ZOOM_SPEED = 0.15;
 
 interface DragState {
   nodeId: string;
@@ -195,8 +203,25 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   // This MUST have a stable identity, otherwise it gets called on every render; I guess because
   // React wants to make sure that as the function identity changes it's always been called?
   const { current: setRef } = React.useRef((e: SVGGElement) => {
-    panzoom.current = e ? Panzoom(e, { disablePan: true, cursor: "default" }) : undefined;
+    panzoom.current = e
+      ? Panzoom(e, {
+          disablePan: true,
+          cursor: "default",
+          // TODO: Are these values captured once, or do we capture a live reference to props?
+          minScale: props.minZoom ?? DEFAULT_MIN_ZOOM,
+          maxScale: props.maxZoom ?? DEFAULT_MAX_ZOOM,
+          step: props.zoomSpeed ?? DEFAULT_ZOOM_SPEED,
+        })
+      : undefined;
   });
+
+  React.useEffect(() => {
+    panzoom.current?.setOptions({
+      minScale: props.minZoom ?? DEFAULT_MIN_ZOOM,
+      maxScale: props.maxZoom ?? DEFAULT_MAX_ZOOM,
+      step: props.zoomSpeed ?? DEFAULT_ZOOM_SPEED,
+    });
+  }, [props.minZoom, props.maxZoom, props.zoomSpeed]);
 
   const scale = panzoom.current?.getScale() ?? 1;
 
