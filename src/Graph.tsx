@@ -2,13 +2,17 @@ import * as React from "react";
 import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 import type { Node, Edge, Position } from "./types";
 
+export interface Grid {
+  dotSize?: number;
+  spacing?: number;
+}
+
 export interface Props<N extends Node = Node, E extends Edge = Edge> {
   nodes: N[];
   edges: E[];
 
   defs?: React.ReactNode[];
-  gridDotSize?: number;
-  gridSpacing?: number;
+  grid?: Grid | false;
 
   minZoom?: number;
   maxZoom?: number;
@@ -104,8 +108,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   const renderEdge = props.renderEdge ?? defaultRenderEdge;
   const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
   const shouldStartPan = props.shouldStartPan ?? defaultShouldStartPan;
-  const gridDotSize = props.gridDotSize ?? 2;
-  const gridSpacing = props.gridSpacing ?? 50;
+  const gridDotSize = (props.grid ? props.grid?.dotSize : undefined) ?? 2;
+  const gridSpacing = (props.grid ? props.grid?.spacing : undefined) ?? 50;
 
   const [currentDrag, setCurrentDrag] = React.useState<DragState | undefined>();
 
@@ -237,7 +241,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
         {/* TODO: Making a huge rect is kind of a cheat. Can we make it functionally infinite somehow? */}
         <rect
           className="panzoom-exclude"
-          fill="url(#grid)"
+          fill={props.grid === false ? "transparent" : "url(#grid)"}
           x="-500"
           y="-500"
           width="1000"
