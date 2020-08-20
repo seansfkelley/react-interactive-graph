@@ -202,7 +202,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
 
   // This MUST have a stable identity, otherwise it gets called on every render; I guess because
   // React wants to make sure that as the function identity changes it's always been called?
-  const { current: setRef } = React.useRef((e: SVGGElement) => {
+  const { current: initializePanzoom } = React.useRef((e: SVGGElement) => {
     panzoom.current = e
       ? Panzoom(e, {
           disablePan: true,
@@ -233,7 +233,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
           <circle cx={gridSpacing / 2} cy={gridSpacing / 2} r={gridDotSize}></circle>
         </pattern>
       </defs>
-      <g ref={setRef}>
+      <g ref={initializePanzoom}>
         {/* TODO: Making a huge rect is kind of a cheat. Can we make it functionally infinite somehow? */}
         <rect
           className="panzoom-exclude"
