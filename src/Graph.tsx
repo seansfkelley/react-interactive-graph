@@ -3,8 +3,26 @@ import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 import type { Node, Edge, Position } from "./types";
 
 export interface Grid {
-  dotSize?: number;
-  spacing?: number;
+  dotSize: number;
+  spacing: number;
+}
+
+export interface Pan {
+  x: number;
+  y: number;
+}
+
+export interface PanConstraints {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+}
+
+export interface ZoomConstraints {
+  min: number;
+  max: number;
+  speed: number;
 }
 
 export interface Props<N extends Node = Node, E extends Edge = Edge> {
@@ -12,11 +30,15 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   edges: E[];
 
   defs?: React.ReactNode[];
-  grid?: Grid | boolean;
+  grid?: Partial<Grid> | boolean;
 
-  minZoom?: number;
-  maxZoom?: number;
-  zoomSpeed?: number;
+  // TODO: All of these.
+  pan?: Partial<Pan> | boolean;
+  onPan?: (pan: Pan) => void;
+  panConstraints?: Partial<PanConstraints>;
+  zoom?: number | boolean;
+  onZoom?: (zoom: number) => void;
+  zoomConstraints?: Partial<ZoomConstraints>;
 
   shouldStartPan?: (e: React.MouseEvent) => boolean;
   // TODO
@@ -212,20 +234,21 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
           disablePan: true,
           cursor: "default",
           // TODO: Are these values captured once, or do we capture a live reference to props?
-          minScale: props.minZoom ?? DEFAULT_MIN_ZOOM,
-          maxScale: props.maxZoom ?? DEFAULT_MAX_ZOOM,
-          step: props.zoomSpeed ?? DEFAULT_ZOOM_SPEED,
+          minScale: props.zoomConstraints?.min ?? DEFAULT_MIN_ZOOM,
+          maxScale: props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM,
+          step: props.zoomConstraints?.speed ?? DEFAULT_ZOOM_SPEED,
         })
       : undefined;
   });
 
   React.useEffect(() => {
+    // TODO: Does this snap back to the constrained settings if the range is reduced below current?
     panzoom.current?.setOptions({
-      minScale: props.minZoom ?? DEFAULT_MIN_ZOOM,
-      maxScale: props.maxZoom ?? DEFAULT_MAX_ZOOM,
-      step: props.zoomSpeed ?? DEFAULT_ZOOM_SPEED,
+      minScale: props.zoomConstraints?.min ?? DEFAULT_MIN_ZOOM,
+      maxScale: props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM,
+      step: props.zoomConstraints?.speed ?? DEFAULT_ZOOM_SPEED,
     });
-  }, [props.minZoom, props.maxZoom, props.zoomSpeed]);
+  }, [props.zoomConstraints?.min, props.zoomConstraints?.max, props.zoomConstraints?.speed]);
 
   const scale = panzoom.current?.getScale() ?? 1;
 
