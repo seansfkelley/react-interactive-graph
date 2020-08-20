@@ -1,6 +1,5 @@
 # TODO
 
-- render gridded background
 - pan/zoom mouse interactions
   - include pinching gesture if possible
 - pan/zoom controls

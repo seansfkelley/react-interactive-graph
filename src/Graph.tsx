@@ -10,6 +10,7 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   gridSpacing?: number;
 
   shouldStartPan?: (e: React.MouseEvent) => boolean;
+  shouldZoom?: (e: React.MouseEvent) => boolean;
 
   renderNode?: (node: N) => React.ReactNode;
   renderEdge?: (edge: E, source: N, target: N) => React.ReactNode;
@@ -121,6 +122,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
     [currentDrag, shouldStartNodeDrag, props.onNodeDragStart, nodesById],
   );
 
+  const onContainerScroll = React.useCallback((e: React.WheelEvent) => {
+    const { deltaY } = e;
+    setViewZoom((zoom) => zoom - deltaY / 1000);
+  }, []);
+
   onDocumentMouseMove.current = React.useCallback(
     (e: MouseEvent) => {
       if (currentDrag) {
@@ -169,15 +175,23 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   );
 
   return (
-    <svg>
+    <svg onWheel={onContainerScroll}>
       <defs>
         {props.defs}
         <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
           <circle cx={gridSpacing / 2} cy={gridSpacing / 2} r={gridDotSize}></circle>
         </pattern>
       </defs>
-      <g transform={`translate(${viewTranslation.x}, ${viewTranslation.y})`}>
-        <rect fill="url(#grid)" width="1000" height="1000" onMouseDown={onBackgroundMouseDown} />
+      <g transform={`translate(${viewTranslation.x}, ${viewTranslation.y}) scale(${viewZoom})`}>
+        {/* TODO: Making a huge rect is kind of a cheat. Can we make it functionally infinite somehow? */}
+        <rect
+          fill="url(#grid)"
+          x="-500"
+          y="-500"
+          width="1000"
+          height="1000"
+          onMouseDown={onBackgroundMouseDown}
+        />
         {props.edges.map((e) => {
           let source = nodesById[e.sourceId];
           let target = nodesById[e.targetId];
