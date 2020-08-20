@@ -47,7 +47,7 @@ export function defaultRenderNode(n: Node) {
   return <circle cx={n.x} cy={n.y} r="10"></circle>;
 }
 
-export function defaultRenderEdge(e: Edge, source: Node, target: Node) {
+export function defaultRenderEdge(_e: Edge, source: Node, target: Node) {
   return (
     <path d={`M${source.x},${source.y}L${target.x},${target.y}`} stroke="grey" strokeWidth={2} />
   );
