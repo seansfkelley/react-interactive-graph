@@ -17,8 +17,8 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
 
   shouldStartNodeDrag?: (e: React.MouseEvent, node: N) => boolean;
   onNodeDragStart?: (e: React.MouseEvent, node: N) => void;
-  onNodeDragMove?: (e: React.MouseEvent, node: N, x: number, y: number) => void;
-  onNodeDragEnd?: (e: React.MouseEvent, node: N, x: number, y: number) => void;
+  onNodeDragMove?: (e: MouseEvent, node: N, x: number, y: number) => void;
+  onNodeDragEnd?: (e: MouseEvent, node: N, x: number, y: number) => void;
 
   shouldStartCreateEdge?: (e: React.MouseEvent, node: N) => boolean;
   onStartCreateEdge?: (source: N) => void;
@@ -57,6 +57,26 @@ interface PanState {
 }
 
 export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props<N, E>) {
+  const onDocumentMouseMove = React.useRef<(e: MouseEvent) => void>();
+  const onDocumentMouseUp = React.useRef<(e: MouseEvent) => void>();
+
+  React.useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      onDocumentMouseMove.current?.(e);
+    };
+    document.addEventListener("mousemove", onMouseMove);
+
+    const onMouseUp = (e: MouseEvent) => {
+      onDocumentMouseUp.current?.(e);
+    };
+    document.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
   const renderNode = props.renderNode ?? defaultRenderNode;
   const renderEdge = props.renderEdge ?? defaultRenderEdge;
   const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
@@ -77,7 +97,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
 
   const onBackgroundMouseDown = React.useCallback((e: React.MouseEvent<SVGElement>) => {
     if (shouldStartPan(e)) {
-      setCurrentPan({ lastX: e.pageX, lastY: e.pageY });
+      setCurrentPan({ lastX: e.screenX, lastY: e.screenY });
     }
   }, []);
 
@@ -90,10 +110,10 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
           props.onNodeDragStart?.(e, node);
           setCurrentDrag({
             nodeId: node.id,
-            startX: e.pageX,
-            startY: e.pageY,
-            currentX: e.pageX,
-            currentY: e.pageY,
+            startX: e.screenX,
+            startY: e.screenY,
+            currentX: e.screenX,
+            currentY: e.screenY,
           });
         }
       }
@@ -101,44 +121,44 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
     [currentDrag, shouldStartNodeDrag, props.onNodeDragStart, nodesById],
   );
 
-  const onContainerMouseMove = React.useCallback(
-    (e: React.MouseEvent) => {
+  onDocumentMouseMove.current = React.useCallback(
+    (e: MouseEvent) => {
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
         props.onNodeDragMove?.(
           e,
           node,
-          e.pageX - currentDrag.startX + node.x,
-          e.pageY - currentDrag.startY + node.y,
+          e.screenX - currentDrag.startX + node.x,
+          e.screenY - currentDrag.startY + node.y,
         );
-        setCurrentDrag({ ...currentDrag, currentX: e.pageX, currentY: e.pageY });
+        setCurrentDrag({ ...currentDrag, currentX: e.screenX, currentY: e.screenY });
       }
 
       if (currentPan) {
-        const { pageX, pageY } = e;
+        const { screenX, screenY } = e;
 
         setCurrentPan({
-          lastX: pageX,
-          lastY: pageY,
+          lastX: screenX,
+          lastY: screenY,
         });
         setViewTranslation(({ x, y }) => ({
-          x: x + pageX - currentPan.lastX,
-          y: y + pageY - currentPan.lastY,
+          x: x + screenX - currentPan.lastX,
+          y: y + screenY - currentPan.lastY,
         }));
       }
     },
     [currentDrag, nodesById, currentPan],
   );
 
-  const onContainerMouseUp = React.useCallback(
-    (e: React.MouseEvent) => {
+  onDocumentMouseUp.current = React.useCallback(
+    (e: MouseEvent) => {
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
         props.onNodeDragEnd?.(
           e,
           node,
-          e.pageX - currentDrag.startX + node.x,
-          e.pageY - currentDrag.startY + node.y,
+          e.screenX - currentDrag.startX + node.x,
+          e.screenY - currentDrag.startY + node.y,
         );
         setCurrentDrag(undefined);
       }
@@ -149,7 +169,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   );
 
   return (
-    <svg onMouseMove={onContainerMouseMove} onMouseUp={onContainerMouseUp}>
+    <svg>
       <defs>
         {props.defs}
         <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
