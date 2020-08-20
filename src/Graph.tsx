@@ -4,6 +4,13 @@ import type { Node, Edge, Position } from "./types";
 export interface Props<N extends Node = Node, E extends Edge = Edge> {
   nodes: N[];
   edges: E[];
+
+  defs?: React.ReactNode[];
+  gridDotSize?: number;
+  gridSpacing?: number;
+
+  shouldStartPan?: (e: React.MouseEvent) => boolean;
+
   renderNode?: (node: N) => React.ReactNode;
   renderEdge?: (edge: E, source: N, target: N) => React.ReactNode;
   renderIncompleteEdge?: (source: N, target: Position) => React.ReactNode;
@@ -16,6 +23,10 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   shouldStartCreateEdge?: (e: React.MouseEvent, node: N) => boolean;
   onStartCreateEdge?: (source: N) => void;
   onCreateEdge?: (source: N, target: N) => void;
+}
+
+export function defaultShouldStartPan(e: React.MouseEvent) {
+  return e.buttons === 1;
 }
 
 export function defaultShouldStartNodeDrag(e: React.MouseEvent) {
@@ -40,12 +51,23 @@ interface DragState {
   currentY: number;
 }
 
+interface PanState {
+  lastX: number;
+  lastY: number;
+}
+
 export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props<N, E>) {
-  const renderNode = props.renderNode || defaultRenderNode;
-  const renderEdge = props.renderEdge || defaultRenderEdge;
-  const shouldStartNodeDrag = props.shouldStartNodeDrag || defaultShouldStartNodeDrag;
+  const renderNode = props.renderNode ?? defaultRenderNode;
+  const renderEdge = props.renderEdge ?? defaultRenderEdge;
+  const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
+  const shouldStartPan = props.shouldStartPan ?? defaultShouldStartPan;
+  const gridDotSize = props.gridDotSize ?? 2;
+  const gridSpacing = props.gridSpacing ?? 50;
 
   const [currentDrag, setCurrentDrag] = React.useState<DragState | undefined>();
+  const [currentPan, setCurrentPan] = React.useState<PanState | undefined>();
+  const [viewTranslation, setViewTranslation] = React.useState({ x: 0, y: 0 });
+  const [viewZoom, setViewZoom] = React.useState(1);
 
   const nodesById = React.useMemo(() => {
     const keyed: Record<string, N> = {};
@@ -53,7 +75,13 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
     return keyed;
   }, [props.nodes]);
 
-  const maybeStartDrag = React.useCallback(
+  const onBackgroundMouseDown = React.useCallback((e: React.MouseEvent<SVGElement>) => {
+    if (shouldStartPan(e)) {
+      setCurrentPan({ lastX: e.pageX, lastY: e.pageY });
+    }
+  }, []);
+
+  const onNodeMouseDown = React.useCallback(
     (e: React.MouseEvent<SVGElement>) => {
       if (currentDrag == null) {
         // TODO: Non-null assertion okay?
@@ -73,7 +101,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
     [currentDrag, shouldStartNodeDrag, props.onNodeDragStart, nodesById],
   );
 
-  const maybeDrag = React.useCallback(
+  const onContainerMouseMove = React.useCallback(
     (e: React.MouseEvent) => {
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
@@ -85,11 +113,24 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
         );
         setCurrentDrag({ ...currentDrag, currentX: e.pageX, currentY: e.pageY });
       }
+
+      if (currentPan) {
+        const { pageX, pageY } = e;
+
+        setCurrentPan({
+          lastX: pageX,
+          lastY: pageY,
+        });
+        setViewTranslation(({ x, y }) => ({
+          x: x + pageX - currentPan.lastX,
+          y: y + pageY - currentPan.lastY,
+        }));
+      }
     },
-    [currentDrag, nodesById],
+    [currentDrag, nodesById, currentPan],
   );
 
-  const maybeEndDrag = React.useCallback(
+  const onContainerMouseUp = React.useCallback(
     (e: React.MouseEvent) => {
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
@@ -101,51 +142,62 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
         );
         setCurrentDrag(undefined);
       }
+
+      setCurrentPan(undefined);
     },
     [currentDrag, nodesById],
   );
 
   return (
-    <svg onMouseMove={maybeDrag} onMouseUp={maybeEndDrag}>
-      {props.edges.map((e) => {
-        let source = nodesById[e.sourceId];
-        let target = nodesById[e.targetId];
+    <svg onMouseMove={onContainerMouseMove} onMouseUp={onContainerMouseUp}>
+      <defs>
+        {props.defs}
+        <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
+          <circle cx={gridSpacing / 2} cy={gridSpacing / 2} r={gridDotSize}></circle>
+        </pattern>
+      </defs>
+      <g transform={`translate(${viewTranslation.x}, ${viewTranslation.y})`}>
+        <rect fill="url(#grid)" width="1000" height="1000" onMouseDown={onBackgroundMouseDown} />
+        {props.edges.map((e) => {
+          let source = nodesById[e.sourceId];
+          let target = nodesById[e.targetId];
 
-        // TODO: Can this use translation or something less heavyweight like the node renderer?
-        if (currentDrag) {
-          if (currentDrag.nodeId === source.id) {
-            source = {
-              ...source,
-              x: currentDrag.currentX - currentDrag.startX + source.x,
-              y: currentDrag.currentY - currentDrag.startY + source.y,
-            };
+          // TODO: Can this use translation or something less heavyweight like the node renderer?
+          if (currentDrag) {
+            if (currentDrag.nodeId === source.id) {
+              source = {
+                ...source,
+                x: currentDrag.currentX - currentDrag.startX + source.x,
+                y: currentDrag.currentY - currentDrag.startY + source.y,
+              };
+            }
+            if (currentDrag.nodeId === target.id) {
+              target = {
+                ...target,
+                x: currentDrag.currentX - currentDrag.startX + target.x,
+                y: currentDrag.currentY - currentDrag.startY + target.y,
+              };
+            }
           }
-          if (currentDrag.nodeId === target.id) {
-            target = {
-              ...target,
-              x: currentDrag.currentX - currentDrag.startX + target.x,
-              y: currentDrag.currentY - currentDrag.startY + target.y,
-            };
-          }
-        }
 
-        return (
-          <g key={e.id ?? `${e.sourceId} ~~~ ${e.targetId}`}>{renderEdge(e, source, target)}</g>
-        );
-      })}
-      {props.nodes.map((n) => {
-        const transform =
-          currentDrag?.nodeId === n.id
-            ? `translate(${currentDrag.currentX - currentDrag.startX}, ${
-                currentDrag.currentY - currentDrag.startY
-              })`
-            : undefined;
-        return (
-          <g key={n.id} data-id={n.id} onMouseDown={maybeStartDrag} transform={transform}>
-            {renderNode(n)}
-          </g>
-        );
-      })}
+          return (
+            <g key={e.id ?? `${e.sourceId} ~~~ ${e.targetId}`}>{renderEdge(e, source, target)}</g>
+          );
+        })}
+        {props.nodes.map((n) => {
+          const transform =
+            currentDrag?.nodeId === n.id
+              ? `translate(${currentDrag.currentX - currentDrag.startX}, ${
+                  currentDrag.currentY - currentDrag.startY
+                })`
+              : undefined;
+          return (
+            <g key={n.id} data-id={n.id} onMouseDown={onNodeMouseDown} transform={transform}>
+              {renderNode(n)}
+            </g>
+          );
+        })}
+      </g>
     </svg>
   );
 }
