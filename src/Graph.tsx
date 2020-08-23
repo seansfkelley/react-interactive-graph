@@ -121,6 +121,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   // This must be null, not undefined, to appease the typechecker/React.
   const rootRef = React.useRef<SVGSVGElement | null>(null);
+  const backgroundRef = React.useRef<SVGRectElement | null>(null);
 
   // Note that zooming and panning are handled separately. This is because, while we want to zoom
   // with all the normal interactions always (scroll, pinch), we only want to pan when interacting
@@ -337,17 +338,35 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   // This MUST have a stable identity, otherwise it gets called on every render; I guess because
   // React wants to make sure that as the function identity changes it's always been called?
-  const { current: initializeTransformRef } = React.useRef((e: SVGGElement) => {
-    transformRef.current = e
-      ? Panzoom(e, {
-          disablePan: true,
-          cursor: "default",
-          // TODO: Are these values captured once, or do we capture a live reference to props?
-          minScale: props.zoomConstraints?.min ?? DEFAULT_MIN_ZOOM,
-          maxScale: props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM,
-          step: props.zoomConstraints?.speed ?? DEFAULT_ZOOM_SPEED,
-        })
-      : undefined;
+  const { current: initializeTransform } = React.useRef((e: SVGGElement | null) => {
+    if (e) {
+      transformRef.current = Panzoom(e, {
+        disablePan: true,
+        cursor: "default",
+        // TODO: Are these values captured once, or do we capture a live reference to props?
+        minScale: props.zoomConstraints?.min ?? DEFAULT_MIN_ZOOM,
+        maxScale: props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM,
+        step: props.zoomConstraints?.speed ?? DEFAULT_ZOOM_SPEED,
+      });
+
+      // TODO: How do we remove this listener when this ref is unmounted?
+      // TODO: Slight bug here: if the background is remounted but no pan is performed afterwards,
+      // it'll be misaligned. We need to do this on background mount too.
+      e.addEventListener("panzoompan", ({ detail: { x, y, scale } }) => {
+        // TODO: This is a cute trick to have an infinite background. We should also resize the
+        // background to make sure it's always larger than the SVG's bounding box by a reasonable.
+        // TODO: Pull this out into an InfiniteTiled component or something.
+        // TODO: -250 was chosen arbitrarily to fit the background; it should probably be a function
+        // of the size of the SVG.
+        if (backgroundRef.current) {
+          backgroundRef.current.style["transform"] = `translate(${-x - 250 + (x % gridSpacing)}px,${
+            -y - 250 + (y % gridSpacing)
+          }px)`;
+        }
+      });
+    } else {
+      transformRef.current = undefined;
+    }
   });
 
   React.useEffect(() => {
@@ -373,13 +392,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           ></circle>
         </pattern>
       </defs>
-      <g ref={initializeTransformRef}>
-        {/* TODO: Making a huge rect is kind of a cheat. Can we make it functionally infinite somehow? */}
+      <g ref={initializeTransform}>
         <rect
+          ref={backgroundRef}
           className="panzoom-exclude"
           fill={props.grid === false ? "transparent" : "url(#grid)"}
-          x="-500"
-          y="-500"
           width="1000"
           height="1000"
           onMouseDown={onMouseDownBackground}
