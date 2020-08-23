@@ -93,14 +93,26 @@ function useSelectionSet<K extends string>(): SelectionSet<K> {
 }
 
 const INITIAL_NODES: Node[] = [
-  { id: nextId(), x: 100, y: 100 },
-  { id: nextId(), x: 200, y: 200 },
+  { id: nextId(), x: -100, y: -100 },
+  { id: nextId(), x: 150, y: 175 },
+  { id: nextId(), x: 0, y: 50 },
+  { id: nextId(), x: 50, y: -100 },
 ];
 const INITIAL_EDGES: Edge[] = [
   {
     id: nextId(),
     sourceId: INITIAL_NODES[0].id,
     targetId: INITIAL_NODES[1].id,
+  },
+  {
+    id: nextId(),
+    sourceId: INITIAL_NODES[1].id,
+    targetId: INITIAL_NODES[2].id,
+  },
+  {
+    id: nextId(),
+    sourceId: INITIAL_NODES[2].id,
+    targetId: INITIAL_NODES[3].id,
   },
 ];
 

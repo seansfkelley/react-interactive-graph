@@ -119,7 +119,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const [incompleteEdge, setIncompleteEdge] = React.useState<EdgeCreateState<N> | undefined>();
 
-  // This must be null to appease the typechecker.
+  // This must be null, not undefined, to appease the typechecker/React.
   const rootRef = React.useRef<SVGSVGElement | null>(null);
 
   // Note that zooming and panning are handled separately. This is because, while we want to zoom
@@ -128,8 +128,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   // it. Furthermore, we want to have a single instance, because panning and zooming is stateful
   // and we want to have a single source of truth. Therefore, we pick the element that should
   // undergo the view transforms to host panzoom, and we forward pan events to it manually.
-  const panzoom = React.useRef<PanzoomObject | undefined>();
-  const currentPan = React.useRef<PanState | undefined>();
+  const transformRef = React.useRef<PanzoomObject | undefined>();
+  const panRef = React.useRef<PanState | undefined>();
 
   const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
   const shouldStartPan = props.shouldStartPan ?? defaultShouldStartPan;
@@ -139,10 +139,20 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const [nodeMouseState, setNodeMouseState] = React.useState<NodeMouseState | undefined>();
 
+  React.useEffect(() => {
+    const { current: root } = rootRef;
+    assertNonNull(root);
+    const { current: transform } = transformRef;
+    assertNonNull(transform);
+    const rect = root.getBoundingClientRect();
+    // TODO: Does this need to divide by scale, like other transformations?
+    transform.pan(rect.width / 2, rect.height / 2, { force: true });
+  }, []);
+
   const getLogicalPosition = React.useCallback((e: React.MouseEvent | MouseEvent): Position => {
     const { current: root } = rootRef;
     assertNonNull(root);
-    const { current: transform } = panzoom;
+    const { current: transform } = transformRef;
     assertNonNull(transform);
 
     const scale = transform.getScale();
@@ -158,7 +168,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const onMouseDownBackground = React.useCallback((e: React.MouseEvent<SVGElement>) => {
     if (shouldStartPan(e)) {
       const { screenX, screenY } = e;
-      currentPan.current = {
+      panRef.current = {
         screenSpaceStartX: screenX,
         screenSpaceStartY: screenY,
         screenSpaceLastX: screenX,
@@ -171,7 +181,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     if (props.onClickBackground) {
       // Note that this only works because this handler fires before the document handler, which
       // is the one that ends the panning.
-      const { current: pan } = currentPan;
+      const { current: pan } = panRef;
       if (
         !pan ||
         (Math.abs(pan.screenSpaceStartX - e.screenX) <= 2 &&
@@ -242,13 +252,13 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   );
 
   const onWheelContainer = React.useCallback((e: React.WheelEvent) => {
-    panzoom.current?.zoomWithWheel(e.nativeEvent);
+    transformRef.current?.zoomWithWheel(e.nativeEvent);
   }, []);
 
   const onMouseMoveDocument = React.useCallback(
     (e: MouseEvent) => {
       const { screenX, screenY } = e;
-      const scale = panzoom.current?.getScale() ?? 1;
+      const scale = transformRef.current?.getScale() ?? 1;
 
       if (nodeMouseState?.dragging) {
         const node = nodesById[nodeMouseState.nodeId];
@@ -275,14 +285,14 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           : undefined,
       );
 
-      const { current: pan } = currentPan;
+      const { current: pan } = panRef;
       if (pan) {
-        panzoom.current?.pan(
+        transformRef.current?.pan(
           (screenX - pan.screenSpaceLastX) / scale,
           (screenY - pan.screenSpaceLastY) / scale,
           { relative: true, force: true },
         );
-        currentPan.current = {
+        panRef.current = {
           ...pan,
           screenSpaceLastX: screenX,
           screenSpaceLastY: screenY,
@@ -300,7 +310,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         const node = nodesById[nodeMouseState.nodeId];
         const { screenX, screenY } = e;
         if (nodeMouseState.dragging) {
-          const scale = panzoom.current?.getScale() ?? 1;
+          const scale = transformRef.current?.getScale() ?? 1;
           props.onDragEndNode?.(
             e,
             node,
@@ -318,7 +328,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
       setIncompleteEdge(undefined);
 
-      currentPan.current = undefined;
+      panRef.current = undefined;
     },
     [nodeMouseState, nodesById, props.onDragEndNode, props.onClickNode],
   );
@@ -327,8 +337,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   // This MUST have a stable identity, otherwise it gets called on every render; I guess because
   // React wants to make sure that as the function identity changes it's always been called?
-  const { current: initializePanzoom } = React.useRef((e: SVGGElement) => {
-    panzoom.current = e
+  const { current: initializeTransformRef } = React.useRef((e: SVGGElement) => {
+    transformRef.current = e
       ? Panzoom(e, {
           disablePan: true,
           cursor: "default",
@@ -342,14 +352,14 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   React.useEffect(() => {
     // TODO: Does this snap back to the constrained settings if the range is reduced below current?
-    panzoom.current?.setOptions({
+    transformRef.current?.setOptions({
       minScale: props.zoomConstraints?.min ?? DEFAULT_MIN_ZOOM,
       maxScale: props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM,
       step: props.zoomConstraints?.speed ?? DEFAULT_ZOOM_SPEED,
     });
   }, [props.zoomConstraints?.min, props.zoomConstraints?.max, props.zoomConstraints?.speed]);
 
-  const scale = panzoom.current?.getScale() ?? 1;
+  const scale = transformRef.current?.getScale() ?? 1;
 
   return (
     <svg onWheel={onWheelContainer} className={props.className} style={props.style} ref={rootRef}>
@@ -363,7 +373,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           ></circle>
         </pattern>
       </defs>
-      <g ref={initializePanzoom}>
+      <g ref={initializeTransformRef}>
         {/* TODO: Making a huge rect is kind of a cheat. Can we make it functionally infinite somehow? */}
         <rect
           className="panzoom-exclude"

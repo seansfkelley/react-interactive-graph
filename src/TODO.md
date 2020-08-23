@@ -9,7 +9,6 @@
 - edge hover: how to only mark hovering when near the actual line?
 - how to change the appearance of nodes that are being hovered for edge creation?
 - snap-to-grid
-- when first rendering, attempt to bring 0, 0 to the center of the viewport
 - box select
 - implement pan/zoom controlled props and constraints
   - maybe constraints are really settings?
