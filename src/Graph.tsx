@@ -1,6 +1,7 @@
 import * as React from "react";
 import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 import type { Node, Edge, Position } from "./types";
+import { assertNonNull } from "./lang";
 
 export interface Grid {
   dotSize: number;
@@ -40,6 +41,7 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   onZoom?: (zoom: number) => void;
   zoomConstraints?: Partial<ZoomConstraints>;
 
+  // TODO: Move this into PanConstraints -> PanSettings?
   shouldStartPan?: (e: React.MouseEvent) => boolean;
   // TODO
   // shouldZoom?: (e: React.MouseEvent) => boolean;
@@ -48,12 +50,16 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   renderEdge?: (edge: E, source: N, target: N) => React.ReactNode;
   renderIncompleteEdge?: (source: N, target: Position) => React.ReactNode;
 
-  shouldStartNodeDrag?: (e: React.MouseEvent, node: N) => boolean;
-  onNodeDragStart?: (e: React.MouseEvent, node: N) => void;
+  onClickNode?: (e: React.MouseEvent, node: N) => void;
+  onClickEdge?: (e: React.MouseEvent, edge: E, source: N, target: N) => void;
+  onClickBackground?: (e: React.MouseEvent) => void;
+
+  shouldStartNodeDrag?: (e: MouseEvent, node: N) => boolean;
+  onNodeDragStart?: (e: MouseEvent, node: N) => void;
   onNodeDragMove?: (e: MouseEvent, node: N, x: number, y: number) => void;
   onNodeDragEnd?: (e: MouseEvent, node: N, x: number, y: number) => void;
 
-  shouldStartCreateEdge?: (e: React.MouseEvent, node: N) => boolean;
+  shouldStartCreateEdge?: (e: React.MouseEvent, source: N) => boolean;
   onStartCreateEdge?: (source: N) => void;
   onCreateEdge?: (source: N, target: N) => void;
 
@@ -61,23 +67,23 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   style?: React.SVGAttributes<SVGSVGElement>["style"];
 }
 
-export function defaultShouldStartPan(e: React.MouseEvent) {
+export const defaultShouldStartPan: NonNullable<Props["shouldStartPan"]> = (e) => {
   return e.buttons === 1;
-}
+};
 
-export function defaultShouldStartNodeDrag(e: React.MouseEvent) {
+export const defaultShouldStartNodeDrag: NonNullable<Props["shouldStartNodeDrag"]> = (e) => {
   return e.buttons === 1;
-}
+};
 
-export function defaultRenderNode(n: Node) {
+export const defaultRenderNode: NonNullable<Props["renderNode"]> = (n) => {
   return <circle cx={n.x} cy={n.y} r="10"></circle>;
-}
+};
 
-export function defaultRenderEdge(_e: Edge, source: Node, target: Node) {
+export const defaultRenderEdge: NonNullable<Props["renderEdge"]> = (_e, source, target) => {
   return (
     <path d={`M${source.x},${source.y}L${target.x},${target.y}`} stroke="grey" strokeWidth={2} />
   );
-}
+};
 
 export const DEFAULT_MIN_ZOOM = 0.25;
 export const DEFAULT_MAX_ZOOM = 2;
@@ -97,17 +103,17 @@ interface PanState {
 }
 
 export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props<N, E>) {
-  const onDocumentMouseMove = React.useRef<(e: MouseEvent) => void>();
-  const onDocumentMouseUp = React.useRef<(e: MouseEvent) => void>();
+  const onMouseMoveDocument = React.useRef<(e: MouseEvent) => void>();
+  const onMouseUpDocument = React.useRef<(e: MouseEvent) => void>();
 
   React.useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      onDocumentMouseMove.current?.(e);
+      onMouseMoveDocument.current?.(e);
     };
     document.addEventListener("mousemove", onMouseMove);
 
     const onMouseUp = (e: MouseEvent) => {
-      onDocumentMouseUp.current?.(e);
+      onMouseUpDocument.current?.(e);
     };
     document.addEventListener("mouseup", onMouseUp);
 
@@ -137,24 +143,41 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
 
   const nodesById = React.useMemo(() => {
     const keyed: Record<string, N> = {};
-    props.nodes.forEach((n) => (keyed[n.id] = n));
+    props.nodes.forEach((n) => {
+      keyed[n.id] = n;
+    });
     return keyed;
   }, [props.nodes]);
 
-  const onBackgroundMouseDown = React.useCallback((e: React.MouseEvent<SVGElement>) => {
+  const edgesWithIds = React.useMemo(() => {
+    return props.edges.map((e) => ({
+      ...e,
+      id: e.id ?? `${e.sourceId} ~~~ ${e.targetId}`,
+    }));
+  }, [props.edges]);
+
+  const edgesById = React.useMemo(() => {
+    const keyed: Record<string, E> = {};
+    edgesWithIds.forEach((e) => {
+      keyed[e.id] = e;
+    });
+    return keyed;
+  }, [edgesWithIds]);
+
+  const onMouseDownBackground = React.useCallback((e: React.MouseEvent<SVGElement>) => {
     if (shouldStartPan(e)) {
       currentPan.current = { screenSpaceLastX: e.screenX, screenSpaceLastY: e.screenY };
     }
   }, []);
 
-  const onNodeMouseDown = React.useCallback(
-    (e: React.MouseEvent<SVGElement>) => {
+  const onMouseDownNode = React.useCallback(
+    (e: React.MouseEvent<SVGGElement>) => {
       if (currentDrag == null) {
-        // TODO: Non-null assertion okay?
-        const node = nodesById[e.currentTarget.dataset.id!];
-        if (shouldStartNodeDrag(e, node)) {
-          const { screenX, screenY } = e;
-          props.onNodeDragStart?.(e, node);
+        const { id } = e.currentTarget.dataset;
+        assertNonNull(id);
+        const node = nodesById[id];
+        const { screenX, screenY } = e;
+        if (shouldStartNodeDrag(e.nativeEvent, node)) {
           setCurrentDrag({
             nodeId: node.id,
             screenSpaceStartX: screenX,
@@ -168,11 +191,36 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
     [currentDrag, shouldStartNodeDrag, props.onNodeDragStart, nodesById],
   );
 
-  const onContainerScroll = React.useCallback((e: React.WheelEvent) => {
+  const onClickNode = React.useCallback(
+    (e: React.MouseEvent<SVGGElement>) => {
+      // TODO: How to prevent this firing after a drag finishes?
+      if (props.onClickNode) {
+        const { id } = e.currentTarget.dataset;
+        assertNonNull(id);
+        const node = nodesById[id];
+        props.onClickNode(e, node);
+      }
+    },
+    [props.onClickNode, currentDrag, nodesById],
+  );
+
+  const onClickEdge = React.useCallback(
+    (e: React.MouseEvent<SVGGElement>) => {
+      if (props.onClickEdge) {
+        const { id } = e.currentTarget.dataset;
+        assertNonNull(id);
+        const edge = edgesById[id];
+        props.onClickEdge(e, edge, nodesById[edge.sourceId], nodesById[edge.targetId]);
+      }
+    },
+    [props.onClickEdge, edgesById, nodesById],
+  );
+
+  const onWheelContainer = React.useCallback((e: React.WheelEvent) => {
     panzoom.current?.zoomWithWheel(e.nativeEvent);
   }, []);
 
-  onDocumentMouseMove.current = React.useCallback(
+  onMouseMoveDocument.current = React.useCallback(
     (e: MouseEvent) => {
       const { screenX, screenY } = e;
       const scale = panzoom.current?.getScale() ?? 1;
@@ -207,7 +255,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
     [currentDrag, nodesById],
   );
 
-  onDocumentMouseUp.current = React.useCallback(
+  onMouseUpDocument.current = React.useCallback(
     (e: MouseEvent) => {
       if (currentDrag) {
         const node = nodesById[currentDrag.nodeId];
@@ -253,7 +301,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
   const scale = panzoom.current?.getScale() ?? 1;
 
   return (
-    <svg onWheel={onContainerScroll} className={props.className} style={props.style}>
+    <svg onWheel={onWheelContainer} className={props.className} style={props.style}>
       <defs>
         {props.defs}
         <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
@@ -269,9 +317,10 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
           y="-500"
           width="1000"
           height="1000"
-          onMouseDown={onBackgroundMouseDown}
+          onMouseDown={onMouseDownBackground}
+          onClick={props.onClickBackground}
         />
-        {props.edges.map((e) => {
+        {edgesWithIds.map((e) => {
           let source = nodesById[e.sourceId];
           let target = nodesById[e.targetId];
 
@@ -302,7 +351,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
           }
 
           return (
-            <g key={e.id ?? `${e.sourceId} ~~~ ${e.targetId}`} className="panzoom-exclude">
+            <g key={e.id} data-id={e.id} className="panzoom-exclude" onClick={onClickEdge}>
               {renderEdge(e, source, target)}
             </g>
           );
@@ -318,7 +367,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
             <g
               key={n.id}
               data-id={n.id}
-              onMouseDown={onNodeMouseDown}
+              onMouseDown={onMouseDownNode}
+              onClick={onClickNode}
               transform={transform}
               className="panzoom-exclude"
             >

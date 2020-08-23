@@ -30,6 +30,9 @@ export function Demo() {
         onNodeDragEnd={(_, n, x, y) => {
           setNodes(nodes.map((node) => (node.id === n.id ? { ...node, x, y } : node)));
         }}
+        onClickNode={(_, n) => {
+          console.log(n);
+        }}
       />
     </div>
   );

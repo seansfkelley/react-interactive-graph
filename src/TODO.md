@@ -1,22 +1,28 @@
 # TODO
 
-- pan/zoom controls
-- background click handler
 - selection:
-  - does this need to be built-in, or can simple click handlers on custom render functions do it?
+  - does this need to be built-in, or can user-defined click handlers on custom render functions do it?
   - what about for edges?
+  - background click handler to allow implementing deselect?
 - deletion:
   - does this need to be built-in, or can the consumer do selection/keypress handling themselves?
+- maybe wrap core graph component with some sane defaults like for selection and deletion and node/edge creation?
 - context menus?
 - edge hover: how to only mark hovering when near the actual line?
-- grid customization
 - how to change the appearance of nodes that are being hovered for edge creation?
 - snap-to-grid
-- one-time autolayouts (or should these be "plugins"?)
-  - best-effort DAG
-  - spring layout
+- when first rendering, attempt to bring 0, 0 to the center of the viewport
 - box select
+- implement pan/zoom controlled props and constraints
+  - maybe constraints are really settings?
+- pan/zoom controls
+- flesh out demo pages
+  - add control strip
+  - show pan/zoom values and allow settings/disabling them
+  - allow customizing grid
+  - basic autolayout implementation
+  - what else?
+- CSS classes all over the place to allow for customization
 - perf?
-- maybe wrap core graph component with some sane defaults like for selection and deletion?
 - DOM rendering?
 - canvas rendering?
