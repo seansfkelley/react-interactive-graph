@@ -160,6 +160,7 @@ export function Demo() {
         edges={edges}
         renderNode={renderNode}
         renderEdge={renderEdge}
+        renderIncompleteEdge={renderIncompleteEdge}
         onClickNode={(event, n) => {
           if (event.metaKey) {
             nodeSelection.toggle(n.id);

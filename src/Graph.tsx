@@ -83,27 +83,28 @@ export const DEFAULT_GRID_DOT_SIZE = 2;
 export const DEFAULT_GRID_SPACING = 50;
 export const DEFAULT_GRID_FILL = "#dddddd";
 
+interface ScreenPosition {
+  screenX: number;
+  screenY: number;
+}
+
 interface NodeDragState {
-  nodeId: string;
-  screenSpaceStartX: number;
-  screenSpaceStartY: number;
-  screenSpaceCurrentX: number;
-  screenSpaceCurrentY: number;
+  id: string;
+  dragging: boolean;
+  start: ScreenPosition;
+  last: ScreenPosition;
 }
 
 interface PanState {
-  screenSpaceStartX: number;
-  screenSpaceStartY: number;
-  screenSpaceLastX: number;
-  screenSpaceLastY: number;
+  panning: boolean;
+  start: ScreenPosition;
+  last: ScreenPosition;
 }
 
 interface EdgeCreateState<N extends Node> {
   source: N;
-  screenSpaceStartX: number;
-  screenSpaceStartY: number;
-  screenSpaceCurrentX: number;
-  screenSpaceCurrentY: number;
+  start: ScreenPosition;
+  last: ScreenPosition;
 }
 
 export function Graph<N extends Node = Node, E extends Edge = Edge>(
@@ -132,6 +133,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const transformRef = React.useRef<PanzoomObject | undefined>();
   const panRef = React.useRef<PanState | undefined>();
   const shouldSkipNextNodeClick = React.useRef<string | undefined>();
+  const shouldSkipNextBackgroundClick = React.useRef(false);
 
   const {
     onClickBackground,
@@ -180,32 +182,23 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const onMouseDownBackground = React.useCallback(
     (e: React.MouseEvent<SVGElement>) => {
-      if (shouldStartPan?.(e)) {
-        const { screenX, screenY } = e;
-        panRef.current = {
-          screenSpaceStartX: screenX,
-          screenSpaceStartY: screenY,
-          screenSpaceLastX: screenX,
-          screenSpaceLastY: screenY,
-        };
-      }
+      const { screenX, screenY } = e;
+      panRef.current = {
+        panning: shouldStartPan?.(e) ?? false,
+        start: { screenX, screenY },
+        last: { screenX, screenY },
+      };
     },
     [shouldStartPan],
   );
 
-  const onMouseUpBackground = React.useCallback(
+  const onClickBackgroundWrapper = React.useCallback(
     (e: React.MouseEvent) => {
-      if (onClickBackground) {
-        // Note that this only works because this handler fires before the document handler, which
-        // is the one that ends the panning.
-        const { current: pan } = panRef;
-        if (
-          !pan ||
-          (Math.abs(pan.screenSpaceStartX - e.screenX) <= 2 &&
-            Math.abs(pan.screenSpaceStartY - e.screenY) <= 2)
-        ) {
-          onClickBackground(e, toWorldSpacePosition(e));
-        }
+      console.log("get", shouldSkipNextBackgroundClick.current);
+      if (shouldSkipNextBackgroundClick.current) {
+        shouldSkipNextBackgroundClick.current = false;
+      } else if (onClickBackground) {
+        onClickBackground(e, toWorldSpacePosition(e));
       }
     },
     [onClickBackground, toWorldSpacePosition],
@@ -220,18 +213,15 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       if (shouldStartCreateEdge?.(e, node)) {
         setIncompleteEdge({
           source: node,
-          screenSpaceStartX: screenX,
-          screenSpaceStartY: screenY,
-          screenSpaceCurrentX: screenX,
-          screenSpaceCurrentY: screenY,
+          start: { screenX, screenY },
+          last: { screenX, screenY },
         });
-      } else if (shouldStartNodeDrag?.(e.nativeEvent, node)) {
+      } else {
         setDragState({
-          nodeId: id,
-          screenSpaceStartX: screenX,
-          screenSpaceStartY: screenY,
-          screenSpaceCurrentX: screenX,
-          screenSpaceCurrentY: screenY,
+          id,
+          dragging: shouldStartNodeDrag?.(e.nativeEvent, node) ?? false,
+          start: { screenX, screenY },
+          last: { screenX, screenY },
         });
       }
     },
@@ -295,32 +285,22 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       if (dragState) {
         setDragState({
           ...dragState,
-          screenSpaceCurrentX: screenX,
-          screenSpaceCurrentY: screenY,
+          last: { screenX, screenY },
         });
       }
 
-      setIncompleteEdge((edge) =>
-        edge
-          ? {
-              ...edge,
-              screenSpaceCurrentX: screenX,
-              screenSpaceCurrentY: screenY,
-            }
-          : undefined,
-      );
+      setIncompleteEdge((edge) => (edge ? { ...edge, last: { screenX, screenY } } : undefined));
 
       const { current: pan } = panRef;
       if (pan) {
         transformRef.current?.pan(
-          (screenX - pan.screenSpaceLastX) / scale,
-          (screenY - pan.screenSpaceLastY) / scale,
+          (screenX - pan.last.screenX) / scale,
+          (screenY - pan.last.screenY) / scale,
           { relative: true, force: true },
         );
         panRef.current = {
           ...pan,
-          screenSpaceLastX: screenX,
-          screenSpaceLastY: screenY,
+          last: { screenX, screenY },
         };
       }
     },
@@ -333,25 +313,30 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     (e: MouseEvent) => {
       if (dragState) {
         const { screenX, screenY } = e;
-        if (
-          dragState.screenSpaceStartX - screenX !== 0 ||
-          dragState.screenSpaceStartY - screenY !== 0
-        ) {
-          shouldSkipNextNodeClick.current = dragState.nodeId;
+        if (dragState.start.screenX - screenX !== 0 || dragState.start.screenY - screenY !== 0) {
+          shouldSkipNextNodeClick.current = dragState.id;
           if (onNodeDragEnd) {
-            const node = nodesById[dragState.nodeId];
+            const node = nodesById[dragState.id];
             const scale = transformRef.current?.getScale() ?? 1;
             onNodeDragEnd(e, node, {
-              x: (screenX - dragState.screenSpaceStartX) / scale + node.x,
-              y: (screenY - dragState.screenSpaceStartY) / scale + node.y,
+              x: (screenX - dragState.start.screenX) / scale + node.x,
+              y: (screenY - dragState.start.screenY) / scale + node.y,
             });
           }
         }
+        setDragState(undefined);
       }
-      setDragState(undefined);
-      setIncompleteEdge(undefined);
 
-      panRef.current = undefined;
+      const { current: pan } = panRef;
+      if (pan) {
+        if (pan.start.screenX - screenX === 0 && pan.start.screenY - screenY === 0) {
+          shouldSkipNextBackgroundClick.current = true;
+        }
+        panRef.current = undefined;
+      }
+      console.log("set", shouldSkipNextBackgroundClick.current);
+
+      setIncompleteEdge(undefined);
     },
     [dragState, nodesById, onNodeDragEnd],
   );
@@ -425,7 +410,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           width="1000"
           height="1000"
           onMouseDown={onMouseDownBackground}
-          onMouseUp={onMouseUpBackground}
+          onClick={onClickBackgroundWrapper}
         />
         {props.edges.map((e) => {
           let source = nodesById[e.sourceId];
@@ -438,18 +423,18 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
           // TODO: Can this use translation or something less heavyweight like the node renderer?
           if (dragState) {
-            if (dragState.nodeId === source.id) {
+            if (dragState.id === source.id) {
               source = {
                 ...source,
-                x: (dragState.screenSpaceCurrentX - dragState.screenSpaceStartX) / scale + source.x,
-                y: (dragState.screenSpaceCurrentY - dragState.screenSpaceStartY) / scale + source.y,
+                x: (dragState.last.screenX - dragState.start.screenX) / scale + source.x,
+                y: (dragState.last.screenY - dragState.start.screenY) / scale + source.y,
               };
             }
-            if (dragState.nodeId === target.id) {
+            if (dragState.id === target.id) {
               target = {
                 ...target,
-                x: (dragState.screenSpaceCurrentX - dragState.screenSpaceStartX) / scale + target.x,
-                y: (dragState.screenSpaceCurrentY - dragState.screenSpaceStartY) / scale + target.y,
+                x: (dragState.last.screenX - dragState.start.screenX) / scale + target.x,
+                y: (dragState.last.screenY - dragState.start.screenY) / scale + target.y,
               };
             }
           }
@@ -464,20 +449,20 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           <g className="panzoom-exclude">
             {props.renderIncompleteEdge(incompleteEdge.source, {
               x:
-                (incompleteEdge.screenSpaceCurrentX - incompleteEdge.screenSpaceStartX) / scale +
+                (incompleteEdge.last.screenX - incompleteEdge.start.screenX) / scale +
                 incompleteEdge.source.x,
               y:
-                (incompleteEdge.screenSpaceCurrentY - incompleteEdge.screenSpaceStartY) / scale +
+                (incompleteEdge.last.screenY - incompleteEdge.start.screenY) / scale +
                 incompleteEdge.source.y,
             })}
           </g>
         )}
         {props.nodes.map((n) => {
           const transform =
-            dragState?.nodeId === n.id
-              ? `translate(${
-                  (dragState.screenSpaceCurrentX - dragState.screenSpaceStartX) / scale
-                }, ${(dragState.screenSpaceCurrentY - dragState.screenSpaceStartY) / scale})`
+            dragState?.id === n.id
+              ? `translate(${(dragState.last.screenX - dragState.start.screenX) / scale}, ${
+                  (dragState.last.screenY - dragState.start.screenY) / scale
+                })`
               : undefined;
           return (
             <g
