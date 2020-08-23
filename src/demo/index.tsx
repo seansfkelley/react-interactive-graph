@@ -5,6 +5,12 @@ import { Graph, Node, Edge } from "../";
 import { objectValues } from "../lang";
 import { useDocumentEvent } from "../hooks";
 
+let _id = 0;
+
+function nextId() {
+  return (++_id).toString();
+}
+
 interface SelectionSet<K extends string> {
   count(): number;
   has(type: K, id: string): boolean;
@@ -86,16 +92,41 @@ function useSelectionSet<K extends string>(): SelectionSet<K> {
   return selectionSet;
 }
 
+const INITIAL_NODES: Node[] = [
+  { id: nextId(), x: 100, y: 100 },
+  { id: nextId(), x: 200, y: 200 },
+];
+const INITIAL_EDGES: Edge[] = [
+  {
+    id: nextId(),
+    sourceId: INITIAL_NODES[0].id,
+    targetId: INITIAL_NODES[1].id,
+  },
+];
+
 export function Demo() {
-  const [nodes, setNodes] = React.useState<Node[]>([
-    { id: "1", x: 100, y: 100 },
-    { id: "2", x: 200, y: 200 },
-  ]);
-  const [edges, setEdges] = React.useState<Edge[]>([{ id: "1-2", sourceId: "1", targetId: "2" }]);
+  const [nodes, setNodes] = React.useState<Node[]>(INITIAL_NODES);
+  const [edges, setEdges] = React.useState<Edge[]>(INITIAL_EDGES);
 
   const [gridEnabled, setGridEnabled] = React.useState(true);
 
   const selection = useSelectionSet<"node" | "edge">();
+  const isCreatingEdge = React.useRef(false);
+
+  const onCreateEdgeStart = React.useCallback((e: React.MouseEvent) => {
+    if (e.ctrlKey) {
+      isCreatingEdge.current = true;
+      return true;
+    } else {
+      return false;
+    }
+  }, []);
+
+  const onCreateEdge = React.useCallback((_e: React.MouseEvent, source: Node, target: Node) => {
+    isCreatingEdge.current = false;
+
+    setEdges((edges) => [...edges, { id: nextId(), sourceId: source.id, targetId: target.id }]);
+  }, []);
 
   const onDocumentKeyUp = React.useCallback(
     (e: KeyboardEvent) => {
@@ -116,6 +147,14 @@ export function Demo() {
   );
 
   useDocumentEvent("keyup", onDocumentKeyUp);
+
+  const onDocumentContextMenu = React.useCallback((e: MouseEvent) => {
+    if (isCreatingEdge.current) {
+      e.preventDefault();
+    }
+  }, []);
+
+  useDocumentEvent("contextmenu", onDocumentContextMenu);
 
   const renderNode = React.useCallback(
     (node: Node) => {
@@ -192,9 +231,14 @@ export function Demo() {
             selection.add("edge", e.id);
           }
         }}
-        onClickBackground={() => {
+        onClickBackground={(e, { x, y }) => {
           selection.clear();
+          if (e.shiftKey) {
+            setNodes((nodes) => [...nodes, { id: nextId(), x, y }]);
+          }
         }}
+        onCreateEdgeStart={onCreateEdgeStart}
+        onCreateEdge={onCreateEdge}
       />
     </div>
   );

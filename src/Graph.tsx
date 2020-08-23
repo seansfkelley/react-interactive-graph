@@ -51,18 +51,17 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   renderEdge?: (edge: E, source: N, target: N) => React.ReactNode;
   renderIncompleteEdge?: (source: N, target: Position) => React.ReactNode;
 
-  onClickNode?: (e: MouseEvent, node: N) => void;
-  onClickEdge?: (e: React.MouseEvent, edge: E, source: N, target: N) => void;
-  onClickBackground?: (e: React.MouseEvent) => void;
+  onClickNode?: (e: MouseEvent, node: N, position: Position) => void;
+  onClickEdge?: (e: React.MouseEvent, edge: E, source: N, target: N, position: Position) => void;
+  onClickBackground?: (e: React.MouseEvent, position: Position) => void;
 
   shouldStartNodeDrag?: (e: MouseEvent, node: N) => boolean;
   onDragStartNode?: (e: MouseEvent, node: N) => void;
   onDragMoveNode?: (e: MouseEvent, node: N, x: number, y: number) => void;
   onDragEndNode?: (e: MouseEvent, node: N, x: number, y: number) => void;
 
-  shouldStartCreateEdge?: (e: React.MouseEvent, source: N) => boolean;
-  onStartCreateEdge?: (source: N) => void;
-  onCreateEdge?: (source: N, target: N) => void;
+  onCreateEdgeStart?: (e: React.MouseEvent, source: N) => boolean;
+  onCreateEdge?: (e: React.MouseEvent, source: N, target: N) => void;
 
   className?: string;
   style?: React.SVGAttributes<SVGSVGElement>["style"];
@@ -86,6 +85,15 @@ export const defaultRenderEdge: NonNullable<Props["renderEdge"]> = (_e, source, 
   );
 };
 
+export const defaultRenderIncompleteEdge: NonNullable<Props["renderIncompleteEdge"]> = (
+  source,
+  target,
+) => {
+  return (
+    <path d={`M${source.x},${source.y}L${target.x},${target.y}`} stroke="grey" strokeWidth={2} />
+  );
+};
+
 export const DEFAULT_MIN_ZOOM = 0.25;
 export const DEFAULT_MAX_ZOOM = 2;
 export const DEFAULT_ZOOM_SPEED = 0.15;
@@ -100,8 +108,18 @@ interface NodeMouseState {
 }
 
 interface PanState {
+  screenSpaceStartX: number;
+  screenSpaceStartY: number;
   screenSpaceLastX: number;
   screenSpaceLastY: number;
+}
+
+interface EdgeCreateState<N extends Node> {
+  source: N;
+  screenSpaceStartX: number;
+  screenSpaceStartY: number;
+  screenSpaceCurrentX: number;
+  screenSpaceCurrentY: number;
 }
 
 export function Graph<N extends Node = Node, E extends Edge = Edge>(
@@ -114,6 +132,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const edgesById = React.useMemo(() => keyBy(props.edges as Edge[], "id"), [
     props.edges,
   ]) as Record<string, E>;
+
+  const [incompleteEdge, setIncompleteEdge] = React.useState<EdgeCreateState<N> | undefined>();
+
+  // This must be null to appease the typechecker.
+  const rootRef = React.useRef<SVGSVGElement | null>(null);
 
   // Note that zooming and panning are handled separately. This is because, while we want to zoom
   // with all the normal interactions always (scroll, pinch), we only want to pan when interacting
@@ -128,24 +151,71 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const renderEdge = props.renderEdge ?? defaultRenderEdge;
   const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
   const shouldStartPan = props.shouldStartPan ?? defaultShouldStartPan;
+  const renderIncompleteEdge = props.renderIncompleteEdge ?? defaultRenderIncompleteEdge;
   const gridDotSize = (typeof props.grid !== "boolean" ? props.grid?.dotSize : undefined) ?? 2;
   const gridSpacing = (typeof props.grid !== "boolean" ? props.grid?.spacing : undefined) ?? 50;
 
   const [nodeMouseState, setNodeMouseState] = React.useState<NodeMouseState | undefined>();
 
+  const getLogicalPosition = React.useCallback((e: React.MouseEvent | MouseEvent): Position => {
+    const { current: root } = rootRef;
+    assertNonNull(root);
+    const { current: transform } = panzoom;
+    assertNonNull(transform);
+
+    const scale = transform.getScale();
+    const { x, y } = transform.getPan();
+    const rect = root.getBoundingClientRect();
+
+    return {
+      x: (e.clientX - rect.left - root.clientLeft) / scale - x,
+      y: (e.clientY - rect.top - root.clientTop) / scale - y,
+    };
+  }, []);
+
   const onMouseDownBackground = React.useCallback((e: React.MouseEvent<SVGElement>) => {
     if (shouldStartPan(e)) {
-      currentPan.current = { screenSpaceLastX: e.screenX, screenSpaceLastY: e.screenY };
+      const { screenX, screenY } = e;
+      currentPan.current = {
+        screenSpaceStartX: screenX,
+        screenSpaceStartY: screenY,
+        screenSpaceLastX: screenX,
+        screenSpaceLastY: screenY,
+      };
+    }
+  }, []);
+
+  const onMouseUpBackground = React.useCallback((e: React.MouseEvent) => {
+    if (props.onClickBackground) {
+      // Note that this only works because this handler fires before the document handler, which
+      // is the one that ends the panning.
+      const { current: pan } = currentPan;
+      if (
+        !pan ||
+        (Math.abs(pan.screenSpaceStartX - e.screenX) <= 2 &&
+          Math.abs(pan.screenSpaceStartY - e.screenY) <= 2)
+      ) {
+        props.onClickBackground(e, getLogicalPosition(e));
+      }
     }
   }, []);
 
   const onMouseDownNode = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
-      if (nodeMouseState == null) {
-        const { id } = e.currentTarget.dataset;
-        assertNonNull(id);
-        const node = nodesById[id];
-        const { screenX, screenY } = e;
+      const { id } = e.currentTarget.dataset;
+      assertNonNull(id);
+      const node = nodesById[id];
+      const { screenX, screenY } = e;
+      // TODO: This is a little odd to have a callback + check wrapped up in one method.
+      if (props.onCreateEdgeStart?.(e, node)) {
+        setIncompleteEdge({
+          source: node,
+          screenSpaceStartX: screenX,
+          screenSpaceStartY: screenY,
+          screenSpaceCurrentX: screenX,
+          screenSpaceCurrentY: screenY,
+        });
+      } else if (nodeMouseState == null) {
         setNodeMouseState({
           nodeId: id,
           dragging: shouldStartNodeDrag(e.nativeEvent, node),
@@ -159,13 +229,31 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     [shouldStartNodeDrag, props.onDragStartNode, nodesById, nodeMouseState],
   );
 
+  const onMouseUpNode = React.useCallback(
+    (e: React.MouseEvent<SVGGElement>) => {
+      if (incompleteEdge && props.onCreateEdge) {
+        const { id } = e.currentTarget.dataset;
+        assertNonNull(id);
+        const node = nodesById[id];
+        props.onCreateEdge(e, incompleteEdge.source, node);
+      }
+    },
+    [props.onCreateEdge, incompleteEdge],
+  );
+
   const onClickEdge = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
       if (props.onClickEdge) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
         const edge = edgesById[id];
-        props.onClickEdge(e, edge, nodesById[edge.sourceId], nodesById[edge.targetId]);
+        props.onClickEdge(
+          e,
+          edge,
+          nodesById[edge.sourceId],
+          nodesById[edge.targetId],
+          getLogicalPosition(e),
+        );
       }
     },
     [props.onClickEdge, nodesById, edgesById],
@@ -195,13 +283,25 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         });
       }
 
-      if (currentPan.current) {
+      setIncompleteEdge((edge) =>
+        edge
+          ? {
+              ...edge,
+              screenSpaceCurrentX: screenX,
+              screenSpaceCurrentY: screenY,
+            }
+          : undefined,
+      );
+
+      const { current: pan } = currentPan;
+      if (pan) {
         panzoom.current?.pan(
-          (screenX - currentPan.current.screenSpaceLastX) / scale,
-          (screenY - currentPan.current.screenSpaceLastY) / scale,
+          (screenX - pan.screenSpaceLastX) / scale,
+          (screenY - pan.screenSpaceLastY) / scale,
           { relative: true, force: true },
         );
         currentPan.current = {
+          ...pan,
           screenSpaceLastX: screenX,
           screenSpaceLastY: screenY,
         };
@@ -229,10 +329,12 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           Math.abs(nodeMouseState.screenSpaceStartX - screenX) <= 2 &&
           Math.abs(nodeMouseState.screenSpaceStartY - screenY) <= 2
         ) {
-          props.onClickNode?.(e, node);
+          props.onClickNode?.(e, node, getLogicalPosition(e));
         }
         setNodeMouseState(undefined);
       }
+
+      setIncompleteEdge(undefined);
 
       currentPan.current = undefined;
     },
@@ -268,7 +370,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const scale = panzoom.current?.getScale() ?? 1;
 
   return (
-    <svg onWheel={onWheelContainer} className={props.className} style={props.style}>
+    <svg onWheel={onWheelContainer} className={props.className} style={props.style} ref={rootRef}>
       <defs>
         {props.defs}
         <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
@@ -285,7 +387,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           width="1000"
           height="1000"
           onMouseDown={onMouseDownBackground}
-          onClick={props.onClickBackground}
+          onMouseUp={onMouseUpBackground}
         />
         {props.edges.map((e) => {
           let source = nodesById[e.sourceId];
@@ -328,6 +430,18 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
             </g>
           );
         })}
+        {incompleteEdge && (
+          <g className="panzoom-exclude">
+            {renderIncompleteEdge(incompleteEdge.source, {
+              x:
+                (incompleteEdge.screenSpaceCurrentX - incompleteEdge.screenSpaceStartX) / scale +
+                incompleteEdge.source.x,
+              y:
+                (incompleteEdge.screenSpaceCurrentY - incompleteEdge.screenSpaceStartY) / scale +
+                incompleteEdge.source.y,
+            })}
+          </g>
+        )}
         {props.nodes.map((n) => {
           const transform =
             nodeMouseState?.nodeId === n.id
@@ -342,6 +456,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
               key={n.id}
               data-id={n.id}
               onMouseDown={onMouseDownNode}
+              onMouseUp={onMouseUpNode}
               transform={transform}
               className="panzoom-exclude"
             >
