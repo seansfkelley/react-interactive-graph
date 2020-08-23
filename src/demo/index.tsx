@@ -200,7 +200,7 @@ export function Demo() {
             d={pathD(source, target)}
             stroke={isSelected ? "lightblue" : "transparent"}
             // Superfat edge to make the click target larger.
-            strokeWidth={isSelected ? 4 : 30}
+            strokeWidth={isSelected ? 4 : 40}
             filter={isSelected ? "url(#drop-shadow-edge-highlight)" : undefined}
           />
           <path
@@ -216,7 +216,15 @@ export function Demo() {
   );
 
   const renderIncompleteEdge = React.useCallback((source: Node, target: Position) => {
-    return <path d={pathD(source, target)} stroke="grey" strokeWidth={2} />;
+    return (
+      <path
+        d={pathD(source, target)}
+        stroke="black"
+        strokeWidth={2}
+        strokeDasharray="20,10"
+        filter="url(#drop-shadow-edge)"
+      />
+    );
   }, []);
 
   return (

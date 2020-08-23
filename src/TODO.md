@@ -11,7 +11,7 @@
 - snap-to-grid
 - box select
 - implement pan/zoom controlled props and constraints
-  - maybe constraints are really settings?
+  - maybe "constraints" are really "settings"?
 - pan/zoom controls
 - flesh out demo pages
   - add control strip
@@ -32,3 +32,4 @@
 - DOM rendering?
 - canvas rendering?
 - audit event handling to make sure it works as intended (for instance, node drag/background click overlap in using document-mouse-up)
+- alternate data model: only takes array of node IDs and an adjacency list?
