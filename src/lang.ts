@@ -4,6 +4,12 @@ type PropertyNamesOfType<T, U> = Extract<
   string
 >;
 
+export function assertEqual(v1: unknown, v2: unknown, message?: string) {
+  if (v1 !== v2) {
+    throw new Error(`assertion failure: ${message || `expected ${v1} to equal ${v2}`}`);
+  }
+}
+
 export function assertNonNull(v: unknown, message?: string): asserts v {
   if (v == null) {
     throw new Error(`assertion failure: ${message || "expected non-null value"}`);

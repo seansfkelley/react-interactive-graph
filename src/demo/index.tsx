@@ -49,11 +49,11 @@ export function Demo() {
     }
   }, [isCreating, nodeSelection, edgeSelection]);
 
-  const onCreateEdgeStart = React.useCallback(() => {
+  const shouldStartCreateEdge = React.useCallback(() => {
     return isCreating;
   }, [isCreating]);
 
-  const onCreateEdge = React.useCallback((_e: React.MouseEvent, source: Node, target: Node) => {
+  const onCreateEdgeEnd = React.useCallback((_e: React.MouseEvent, source: Node, target: Node) => {
     setEdges((edges) => [...edges, { id: nextId(), sourceId: source.id, targetId: target.id }]);
   }, []);
 
@@ -158,19 +158,10 @@ export function Demo() {
         grid={gridEnabled && grid}
         nodes={nodes}
         edges={edges}
-        onDragEndNode={(_, n, x, y) => {
-          setNodes(nodes.map((node) => (node.id === n.id ? { ...node, x, y } : node)));
-        }}
         renderNode={renderNode}
         renderEdge={renderEdge}
-        renderIncompleteEdge={renderIncompleteEdge}
-        shouldStartNodeDrag={(event) => {
-          return !isCreating || event.shiftKey;
-        }}
         onClickNode={(event, n) => {
-          if (event.shiftKey) {
-            // nop; this is the hotkey for dragging
-          } else if (event.metaKey) {
+          if (event.metaKey) {
             nodeSelection.toggle(n.id);
           } else {
             edgeSelection.clear();
@@ -179,9 +170,7 @@ export function Demo() {
           }
         }}
         onClickEdge={(event, e) => {
-          if (event.shiftKey) {
-            // nop; this is the hotkey for dragging
-          } else if (event.metaKey) {
+          if (event.metaKey) {
             edgeSelection.toggle(e.id);
           } else {
             nodeSelection.clear();
@@ -197,8 +186,14 @@ export function Demo() {
             edgeSelection.clear();
           }
         }}
-        onCreateEdgeStart={onCreateEdgeStart}
-        onCreateEdge={onCreateEdge}
+        shouldStartNodeDrag={(event) => {
+          return !isCreating || event.shiftKey;
+        }}
+        onNodeDragEnd={(_, n, position) => {
+          setNodes(nodes.map((node) => (node.id === n.id ? { ...node, ...position } : node)));
+        }}
+        shouldStartCreateEdge={shouldStartCreateEdge}
+        onCreateEdgeEnd={onCreateEdgeEnd}
       >
         <defs>
           {/* TODO: Can this be one drop shadow with different colors at the usage site? */}

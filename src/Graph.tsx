@@ -1,7 +1,7 @@
 import * as React from "react";
 import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 import type { Node, Edge, Position } from "./types";
-import { assertNonNull, keyBy } from "./lang";
+import { assertNonNull, assertEqual, keyBy } from "./lang";
 import { useDocumentEvent } from "./hooks";
 
 interface PanzoomEvent {
@@ -58,17 +58,15 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   // TODO
   // shouldZoom?: (e: React.MouseEvent) => boolean;
 
-  onClickNode?: (e: MouseEvent, node: N, position: Position) => void;
+  onClickNode?: (e: React.MouseEvent, node: N, position: Position) => void;
   onClickEdge?: (e: React.MouseEvent, edge: E, source: N, target: N, position: Position) => void;
   onClickBackground?: (e: React.MouseEvent, position: Position) => void;
 
   shouldStartNodeDrag?: (e: MouseEvent, node: N) => boolean;
-  onDragStartNode?: (e: MouseEvent, node: N) => void;
-  onDragMoveNode?: (e: MouseEvent, node: N, x: number, y: number) => void;
-  onDragEndNode?: (e: MouseEvent, node: N, x: number, y: number) => void;
+  onNodeDragEnd?: (e: MouseEvent, node: N, position: Position) => void;
 
-  onCreateEdgeStart?: (e: React.MouseEvent, source: N) => boolean;
-  onCreateEdge?: (e: React.MouseEvent, source: N, target: N) => void;
+  shouldStartCreateEdge?: (e: React.MouseEvent, source: N) => boolean;
+  onCreateEdgeEnd?: (e: React.MouseEvent, source: N, target: N) => void;
 
   className?: string;
   style?: React.SVGAttributes<SVGSVGElement>["style"];
@@ -85,9 +83,8 @@ export const DEFAULT_GRID_DOT_SIZE = 2;
 export const DEFAULT_GRID_SPACING = 50;
 export const DEFAULT_GRID_FILL = "#dddddd";
 
-interface NodeMouseState {
+interface NodeDragState {
   nodeId: string;
-  dragging: boolean;
   screenSpaceStartX: number;
   screenSpaceStartY: number;
   screenSpaceCurrentX: number;
@@ -134,17 +131,16 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   // undergo the view transforms to host panzoom, and we forward pan events to it manually.
   const transformRef = React.useRef<PanzoomObject | undefined>();
   const panRef = React.useRef<PanState | undefined>();
+  const shouldSkipNextNodeClick = React.useRef<string | undefined>();
 
   const {
     onClickBackground,
     onClickNode,
     onClickEdge,
-    onDragStartNode,
-    onDragMoveNode,
-    onDragEndNode,
-    onCreateEdgeStart,
-    onCreateEdge,
     shouldStartNodeDrag,
+    onNodeDragEnd,
+    shouldStartCreateEdge,
+    onCreateEdgeEnd,
     shouldStartPan,
   } = props;
   const gridDotSize =
@@ -154,7 +150,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const gridFill =
     (typeof props.grid !== "boolean" ? props.grid?.fill : undefined) ?? DEFAULT_GRID_FILL;
 
-  const [nodeMouseState, setNodeMouseState] = React.useState<NodeMouseState | undefined>();
+  const [dragState, setDragState] = React.useState<NodeDragState | undefined>();
 
   React.useEffect(() => {
     const { current: root } = rootRef;
@@ -221,8 +217,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       assertNonNull(id);
       const node = nodesById[id];
       const { screenX, screenY } = e;
-      // TODO: This is a little odd to have a callback + check wrapped up in one method.
-      if (onCreateEdgeStart?.(e, node)) {
+      if (shouldStartCreateEdge?.(e, node)) {
         setIncompleteEdge({
           source: node,
           screenSpaceStartX: screenX,
@@ -230,35 +225,44 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           screenSpaceCurrentX: screenX,
           screenSpaceCurrentY: screenY,
         });
-      } else if (nodeMouseState == null) {
-        const dragging = shouldStartNodeDrag?.(e.nativeEvent, node) ?? false;
-
-        setNodeMouseState({
+      } else if (shouldStartNodeDrag?.(e.nativeEvent, node)) {
+        setDragState({
           nodeId: id,
-          dragging,
           screenSpaceStartX: screenX,
           screenSpaceStartY: screenY,
           screenSpaceCurrentX: screenX,
           screenSpaceCurrentY: screenY,
         });
-        if (dragging) {
-          onDragStartNode?.(e.nativeEvent, node);
-        }
       }
     },
-    [onCreateEdgeStart, shouldStartNodeDrag, onDragStartNode, nodesById, nodeMouseState],
+    [shouldStartCreateEdge, shouldStartNodeDrag, nodesById],
   );
 
   const onMouseUpNode = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
-      if (incompleteEdge && onCreateEdge) {
+      if (incompleteEdge && onCreateEdgeEnd) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
         const node = nodesById[id];
-        onCreateEdge(e, incompleteEdge.source, node);
+        onCreateEdgeEnd(e, incompleteEdge.source, node);
       }
     },
-    [onCreateEdge, incompleteEdge, nodesById],
+    [onCreateEdgeEnd, incompleteEdge, nodesById],
+  );
+
+  const onClickNodeWrapper = React.useCallback(
+    (e: React.MouseEvent<SVGGElement>) => {
+      const { id } = e.currentTarget.dataset;
+      assertNonNull(id);
+      if (shouldSkipNextNodeClick.current != null) {
+        assertEqual(shouldSkipNextNodeClick.current, id);
+        shouldSkipNextNodeClick.current = undefined;
+      } else if (onClickNode) {
+        const node = nodesById[id];
+        onClickNode(e, node, toWorldSpacePosition(e));
+      }
+    },
+    [onClickNode, nodesById, toWorldSpacePosition],
   );
 
   const onClickEdgeWrapper = React.useCallback(
@@ -288,16 +292,9 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       const { screenX, screenY } = e;
       const scale = transformRef.current?.getScale() ?? 1;
 
-      if (nodeMouseState?.dragging) {
-        const node = nodesById[nodeMouseState.nodeId];
-        onDragMoveNode?.(
-          e,
-          node,
-          (screenX - nodeMouseState.screenSpaceStartX) / scale + node.x,
-          (screenY - nodeMouseState.screenSpaceStartY) / scale + node.y,
-        );
-        setNodeMouseState({
-          ...nodeMouseState,
+      if (dragState) {
+        setDragState({
+          ...dragState,
           screenSpaceCurrentX: screenX,
           screenSpaceCurrentY: screenY,
         });
@@ -327,38 +324,36 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         };
       }
     },
-    [onDragMoveNode, nodeMouseState, nodesById],
+    [dragState],
   );
 
   useDocumentEvent("mousemove", onMouseMoveDocument);
 
   const onMouseUpDocument = React.useCallback(
     (e: MouseEvent) => {
-      if (nodeMouseState) {
-        const node = nodesById[nodeMouseState.nodeId];
+      if (dragState) {
         const { screenX, screenY } = e;
-        if (nodeMouseState.dragging) {
-          const scale = transformRef.current?.getScale() ?? 1;
-          onDragEndNode?.(
-            e,
-            node,
-            (screenX - nodeMouseState.screenSpaceStartX) / scale + node.x,
-            (screenY - nodeMouseState.screenSpaceStartY) / scale + node.y,
-          );
-        } else if (
-          Math.abs(nodeMouseState.screenSpaceStartX - screenX) <= 2 &&
-          Math.abs(nodeMouseState.screenSpaceStartY - screenY) <= 2
+        if (
+          dragState.screenSpaceStartX - screenX !== 0 ||
+          dragState.screenSpaceStartY - screenY !== 0
         ) {
-          onClickNode?.(e, node, toWorldSpacePosition(e));
+          shouldSkipNextNodeClick.current = dragState.nodeId;
+          if (onNodeDragEnd) {
+            const node = nodesById[dragState.nodeId];
+            const scale = transformRef.current?.getScale() ?? 1;
+            onNodeDragEnd(e, node, {
+              x: (screenX - dragState.screenSpaceStartX) / scale + node.x,
+              y: (screenY - dragState.screenSpaceStartY) / scale + node.y,
+            });
+          }
         }
-        setNodeMouseState(undefined);
       }
-
+      setDragState(undefined);
       setIncompleteEdge(undefined);
 
       panRef.current = undefined;
     },
-    [nodeMouseState, nodesById, onDragEndNode, onClickNode, toWorldSpacePosition],
+    [dragState, nodesById, onNodeDragEnd],
   );
 
   useDocumentEvent("mouseup", onMouseUpDocument);
@@ -442,27 +437,19 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           }
 
           // TODO: Can this use translation or something less heavyweight like the node renderer?
-          if (nodeMouseState) {
-            if (nodeMouseState.nodeId === source.id) {
+          if (dragState) {
+            if (dragState.nodeId === source.id) {
               source = {
                 ...source,
-                x:
-                  (nodeMouseState.screenSpaceCurrentX - nodeMouseState.screenSpaceStartX) / scale +
-                  source.x,
-                y:
-                  (nodeMouseState.screenSpaceCurrentY - nodeMouseState.screenSpaceStartY) / scale +
-                  source.y,
+                x: (dragState.screenSpaceCurrentX - dragState.screenSpaceStartX) / scale + source.x,
+                y: (dragState.screenSpaceCurrentY - dragState.screenSpaceStartY) / scale + source.y,
               };
             }
-            if (nodeMouseState.nodeId === target.id) {
+            if (dragState.nodeId === target.id) {
               target = {
                 ...target,
-                x:
-                  (nodeMouseState.screenSpaceCurrentX - nodeMouseState.screenSpaceStartX) / scale +
-                  target.x,
-                y:
-                  (nodeMouseState.screenSpaceCurrentY - nodeMouseState.screenSpaceStartY) / scale +
-                  target.y,
+                x: (dragState.screenSpaceCurrentX - dragState.screenSpaceStartX) / scale + target.x,
+                y: (dragState.screenSpaceCurrentY - dragState.screenSpaceStartY) / scale + target.y,
               };
             }
           }
@@ -487,12 +474,10 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         )}
         {props.nodes.map((n) => {
           const transform =
-            nodeMouseState?.nodeId === n.id
+            dragState?.nodeId === n.id
               ? `translate(${
-                  (nodeMouseState.screenSpaceCurrentX - nodeMouseState.screenSpaceStartX) / scale
-                }, ${
-                  (nodeMouseState.screenSpaceCurrentY - nodeMouseState.screenSpaceStartY) / scale
-                })`
+                  (dragState.screenSpaceCurrentX - dragState.screenSpaceStartX) / scale
+                }, ${(dragState.screenSpaceCurrentY - dragState.screenSpaceStartY) / scale})`
               : undefined;
           return (
             <g
@@ -500,6 +485,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
               data-id={n.id}
               onMouseDown={onMouseDownNode}
               onMouseUp={onMouseUpNode}
+              onClick={onClickNodeWrapper}
               transform={transform}
               className="panzoom-exclude"
             >
