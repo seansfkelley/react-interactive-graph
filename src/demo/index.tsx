@@ -149,7 +149,7 @@ export function Demo() {
   }, []);
 
   return (
-    <div>
+    <>
       <div>
         <input
           type="checkbox"
@@ -160,7 +160,7 @@ export function Demo() {
         />
       </div>
       <Graph
-        style={{ width: 400, height: 600 }}
+        style={{ flex: 1 }}
         grid={gridEnabled}
         nodes={nodes}
         edges={edges}
@@ -218,7 +218,7 @@ export function Demo() {
           </filter>
         </defs>
       </Graph>
-    </div>
+    </>
   );
 }
 
