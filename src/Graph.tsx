@@ -74,14 +74,6 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   style?: React.SVGAttributes<SVGSVGElement>["style"];
 }
 
-export const defaultShouldStartPan: NonNullable<Props["shouldStartPan"]> = (e) => {
-  return e.buttons === 1;
-};
-
-export const defaultShouldStartNodeDrag: NonNullable<Props["shouldStartNodeDrag"]> = (e) => {
-  return e.buttons === 1 && e.shiftKey;
-};
-
 export function pathD(source: Position, target: Position) {
   return `M${source.x},${source.y}L${target.x},${target.y}`;
 }
@@ -143,8 +135,6 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const transformRef = React.useRef<PanzoomObject | undefined>();
   const panRef = React.useRef<PanState | undefined>();
 
-  const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
-  const shouldStartPan = props.shouldStartPan ?? defaultShouldStartPan;
   const {
     onClickBackground,
     onClickNode,
@@ -154,6 +144,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     onDragEndNode,
     onCreateEdgeStart,
     onCreateEdge,
+    shouldStartNodeDrag,
+    shouldStartPan,
   } = props;
   const gridDotSize =
     (typeof props.grid !== "boolean" ? props.grid?.dotSize : undefined) ?? DEFAULT_GRID_DOT_SIZE;
@@ -192,7 +184,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const onMouseDownBackground = React.useCallback(
     (e: React.MouseEvent<SVGElement>) => {
-      if (shouldStartPan(e)) {
+      if (shouldStartPan?.(e)) {
         const { screenX, screenY } = e;
         panRef.current = {
           screenSpaceStartX: screenX,
@@ -239,7 +231,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           screenSpaceCurrentY: screenY,
         });
       } else if (nodeMouseState == null) {
-        const dragging = shouldStartNodeDrag(e.nativeEvent, node);
+        const dragging = shouldStartNodeDrag?.(e.nativeEvent, node) ?? false;
 
         setNodeMouseState({
           nodeId: id,

@@ -30,6 +30,8 @@ export function Demo() {
     setEdges(edges);
   }, []);
 
+  const [isCreating, setIsCreating] = React.useState(false);
+
   const [gridEnabled, setGridEnabled] = React.useState(true);
   const [grid, setGrid] = React.useState<Required<Grid>>({
     dotSize: DEFAULT_GRID_DOT_SIZE,
@@ -39,20 +41,19 @@ export function Demo() {
 
   const nodeSelection = useSelectionSet();
   const edgeSelection = useSelectionSet();
-  const isCreatingEdge = React.useRef(false);
 
-  const onCreateEdgeStart = React.useCallback((e: React.MouseEvent) => {
-    if (e.ctrlKey) {
-      isCreatingEdge.current = true;
-      return true;
-    } else {
-      return false;
+  React.useEffect(() => {
+    if (isCreating) {
+      nodeSelection.clear();
+      edgeSelection.clear();
     }
-  }, []);
+  }, [isCreating, nodeSelection, edgeSelection]);
+
+  const onCreateEdgeStart = React.useCallback(() => {
+    return isCreating;
+  }, [isCreating]);
 
   const onCreateEdge = React.useCallback((_e: React.MouseEvent, source: Node, target: Node) => {
-    isCreatingEdge.current = false;
-
     setEdges((edges) => [...edges, { id: nextId(), sourceId: source.id, targetId: target.id }]);
   }, []);
 
@@ -75,14 +76,6 @@ export function Demo() {
   );
 
   useDocumentEvent("keyup", onDocumentKeyUp);
-
-  const onDocumentContextMenu = React.useCallback((e: MouseEvent) => {
-    if (isCreatingEdge.current) {
-      e.preventDefault();
-    }
-  }, []);
-
-  useDocumentEvent("contextmenu", onDocumentContextMenu);
 
   const renderNode = React.useCallback(
     (node: Node) => {
@@ -148,6 +141,8 @@ export function Demo() {
   return (
     <>
       <ControlStrip
+        isCreating={isCreating}
+        onChangeIsCreating={setIsCreating}
         gridEnabled={gridEnabled}
         onChangeGridEnabled={setGridEnabled}
         grid={grid}
@@ -159,7 +154,7 @@ export function Demo() {
         }}
       />
       <Graph
-        style={{ flex: 1 }}
+        style={{ flex: 1, cursor: isCreating ? "pointer" : undefined }}
         grid={gridEnabled && grid}
         nodes={nodes}
         edges={edges}
@@ -169,6 +164,9 @@ export function Demo() {
         renderNode={renderNode}
         renderEdge={renderEdge}
         renderIncompleteEdge={renderIncompleteEdge}
+        shouldStartNodeDrag={(event) => {
+          return !isCreating || event.shiftKey;
+        }}
         onClickNode={(event, n) => {
           if (event.shiftKey) {
             // nop; this is the hotkey for dragging
@@ -191,11 +189,12 @@ export function Demo() {
             edgeSelection.add(e.id);
           }
         }}
-        onClickBackground={(e, { x, y }) => {
-          nodeSelection.clear();
-          edgeSelection.clear();
-          if (e.shiftKey) {
+        onClickBackground={(_event, { x, y }) => {
+          if (isCreating) {
             setNodes((nodes) => [...nodes, { id: nextId(), x, y }]);
+          } else {
+            nodeSelection.clear();
+            edgeSelection.clear();
           }
         }}
         onCreateEdgeStart={onCreateEdgeStart}
