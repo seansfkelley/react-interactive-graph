@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { Graph, Node, Edge } from "../";
+import { Graph, Node, Edge, pathD, Position } from "../";
 // TODO: Probably shouldn't reach into this internal import?
 import { objectValues } from "../lang";
 import { useDocumentEvent } from "../hooks";
@@ -158,12 +158,21 @@ export function Demo() {
 
   const renderNode = React.useCallback(
     (node: Node) => {
+      const isSelected = selection.has("node", node.id);
       return (
         <>
-          {selection.has("node", node.id) && (
-            <circle cx={node.x} cy={node.y} r="14" fill="blue"></circle>
-          )}
-          <circle cx={node.x} cy={node.y} r="10"></circle>
+          <circle
+            cx={node.x}
+            cy={node.y}
+            r="40"
+            strokeWidth={1}
+            fill="white"
+            stroke={isSelected ? "lightblue" : "black"}
+            filter={isSelected ? "url(#drop-shadow-node-highlight)" : "url(#drop-shadow-node)"}
+          />
+          <text x={node.x} y={node.y} textAnchor="middle" dominantBaseline="middle">
+            node id: {node.id}
+          </text>
         </>
       );
     },
@@ -172,23 +181,31 @@ export function Demo() {
 
   const renderEdge = React.useCallback(
     (edge: Edge, source: Node, target: Node) => {
+      const isSelected = selection.has("edge", edge.id);
       return (
         <>
           <path
-            d={`M${source.x},${source.y}L${target.x},${target.y}`}
-            stroke="grey"
-            strokeWidth={2}
+            d={pathD(source, target)}
+            stroke={isSelected ? "lightblue" : "transparent"}
+            // Superfat edge to make the click target larger.
+            strokeWidth={isSelected ? 4 : 30}
+            filter={isSelected ? "url(#drop-shadow-edge-highlight)" : undefined}
           />
           <path
-            d={`M${source.x},${source.y}L${target.x},${target.y}`}
-            stroke={selection.has("edge", edge.id) ? "blue" : "transparent"}
-            strokeWidth={selection.has("edge", edge.id) ? 6 : 30}
+            d={pathD(source, target)}
+            stroke="black"
+            strokeWidth={2}
+            filter={isSelected ? undefined : "url(#drop-shadow-edge)"}
           />
         </>
       );
     },
     [selection],
   );
+
+  const renderIncompleteEdge = React.useCallback((source: Node, target: Position) => {
+    return <path d={pathD(source, target)} stroke="grey" strokeWidth={2} />;
+  }, []);
 
   return (
     <div>
@@ -211,6 +228,7 @@ export function Demo() {
         }}
         renderNode={renderNode}
         renderEdge={renderEdge}
+        renderIncompleteEdge={renderIncompleteEdge}
         onClickNode={(event, n) => {
           if (event.shiftKey) {
             // nop; this is the hotkey for dragging
@@ -239,7 +257,23 @@ export function Demo() {
         }}
         onCreateEdgeStart={onCreateEdgeStart}
         onCreateEdge={onCreateEdge}
-      />
+      >
+        <defs>
+          {/* TODO: Can this be one drop shadow with different colors at the usage site? */}
+          <filter id="drop-shadow-node">
+            <feDropShadow dx="1" dy="1" stdDeviation="2" floodColor="black" />
+          </filter>
+          <filter id="drop-shadow-node-highlight">
+            <feDropShadow dx="1" dy="1" stdDeviation="1" floodColor="blue" />
+          </filter>
+          <filter id="drop-shadow-edge">
+            <feDropShadow dx="1" dy="1" stdDeviation="1" floodColor="black" />
+          </filter>
+          <filter id="drop-shadow-edge-highlight">
+            <feDropShadow dx="1" dy="1" stdDeviation="2" floodColor="blue" />
+          </filter>
+        </defs>
+      </Graph>
     </div>
   );
 }

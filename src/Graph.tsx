@@ -5,8 +5,9 @@ import { assertNonNull, keyBy } from "./lang";
 import { useDocumentEvent } from "./hooks";
 
 export interface Grid {
-  dotSize: number;
-  spacing: number;
+  dotSize?: number;
+  spacing?: number;
+  fill?: string;
 }
 
 export interface Pan {
@@ -30,9 +31,11 @@ export interface ZoomConstraints {
 export interface Props<N extends Node = Node, E extends Edge = Edge> {
   nodes: N[];
   edges: E[];
-
-  defs?: React.ReactNode[];
   grid?: Partial<Grid> | boolean;
+
+  renderNode: (node: N) => React.ReactNode;
+  renderEdge: (edge: E, source: N, target: N) => React.ReactNode;
+  renderIncompleteEdge?: (source: N, target: Position) => React.ReactNode;
 
   // TODO: All of these.
   pan?: Partial<Pan> | boolean;
@@ -46,10 +49,6 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   shouldStartPan?: (e: React.MouseEvent) => boolean;
   // TODO
   // shouldZoom?: (e: React.MouseEvent) => boolean;
-
-  renderNode?: (node: N) => React.ReactNode;
-  renderEdge?: (edge: E, source: N, target: N) => React.ReactNode;
-  renderIncompleteEdge?: (source: N, target: Position) => React.ReactNode;
 
   onClickNode?: (e: MouseEvent, node: N, position: Position) => void;
   onClickEdge?: (e: React.MouseEvent, edge: E, source: N, target: N, position: Position) => void;
@@ -75,24 +74,9 @@ export const defaultShouldStartNodeDrag: NonNullable<Props["shouldStartNodeDrag"
   return e.buttons === 1 && e.shiftKey;
 };
 
-export const defaultRenderNode: NonNullable<Props["renderNode"]> = (n) => {
-  return <circle cx={n.x} cy={n.y} r="10"></circle>;
-};
-
-export const defaultRenderEdge: NonNullable<Props["renderEdge"]> = (_e, source, target) => {
-  return (
-    <path d={`M${source.x},${source.y}L${target.x},${target.y}`} stroke="grey" strokeWidth={2} />
-  );
-};
-
-export const defaultRenderIncompleteEdge: NonNullable<Props["renderIncompleteEdge"]> = (
-  source,
-  target,
-) => {
-  return (
-    <path d={`M${source.x},${source.y}L${target.x},${target.y}`} stroke="grey" strokeWidth={2} />
-  );
-};
+export function pathD(source: Position, target: Position) {
+  return `M${source.x},${source.y}L${target.x},${target.y}`;
+}
 
 export const DEFAULT_MIN_ZOOM = 0.25;
 export const DEFAULT_MAX_ZOOM = 2;
@@ -147,13 +131,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const panzoom = React.useRef<PanzoomObject | undefined>();
   const currentPan = React.useRef<PanState | undefined>();
 
-  const renderNode = props.renderNode ?? defaultRenderNode;
-  const renderEdge = props.renderEdge ?? defaultRenderEdge;
   const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
   const shouldStartPan = props.shouldStartPan ?? defaultShouldStartPan;
-  const renderIncompleteEdge = props.renderIncompleteEdge ?? defaultRenderIncompleteEdge;
   const gridDotSize = (typeof props.grid !== "boolean" ? props.grid?.dotSize : undefined) ?? 2;
   const gridSpacing = (typeof props.grid !== "boolean" ? props.grid?.spacing : undefined) ?? 50;
+  const gridFill = (typeof props.grid !== "boolean" ? props.grid?.fill : undefined) ?? "lightgrey";
 
   const [nodeMouseState, setNodeMouseState] = React.useState<NodeMouseState | undefined>();
 
@@ -372,9 +354,13 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   return (
     <svg onWheel={onWheelContainer} className={props.className} style={props.style} ref={rootRef}>
       <defs>
-        {props.defs}
         <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
-          <circle cx={gridSpacing / 2} cy={gridSpacing / 2} r={gridDotSize}></circle>
+          <circle
+            cx={gridSpacing / 2}
+            cy={gridSpacing / 2}
+            r={gridDotSize}
+            fill={gridFill}
+          ></circle>
         </pattern>
       </defs>
       <g ref={initializePanzoom}>
@@ -426,13 +412,13 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
           return (
             <g key={e.id} data-id={e.id} className="panzoom-exclude" onClick={onClickEdge}>
-              {renderEdge(e, source, target)}
+              {props.renderEdge(e, source, target)}
             </g>
           );
         })}
-        {incompleteEdge && (
+        {incompleteEdge && props.renderIncompleteEdge && (
           <g className="panzoom-exclude">
-            {renderIncompleteEdge(incompleteEdge.source, {
+            {props.renderIncompleteEdge(incompleteEdge.source, {
               x:
                 (incompleteEdge.screenSpaceCurrentX - incompleteEdge.screenSpaceStartX) / scale +
                 incompleteEdge.source.x,
@@ -460,7 +446,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
               transform={transform}
               className="panzoom-exclude"
             >
-              {renderNode(n)}
+              {props.renderNode(n)}
             </g>
           );
         })}
