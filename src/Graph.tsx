@@ -1,7 +1,7 @@
 import * as React from "react";
 import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 import type { Node, Edge, Position } from "./types";
-import { assertNonNull } from "./lang";
+import { assertNonNull, keyBy } from "./lang";
 
 export interface Grid {
   dotSize: number;
@@ -102,7 +102,17 @@ interface PanState {
   screenSpaceLastY: number;
 }
 
-export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props<N, E>) {
+export function Graph<N extends Node = Node, E extends Edge = Edge>(
+  props: React.PropsWithChildren<Props<N, E>>,
+) {
+  const nodesById = React.useMemo(() => keyBy(props.nodes as Node[], "id"), [
+    props.nodes,
+  ]) as Record<string, N>;
+
+  const edgesById = React.useMemo(() => keyBy(props.edges as Edge[], "id"), [
+    props.edges,
+  ]) as Record<string, E>;
+
   const onMouseMoveDocument = React.useRef<(e: MouseEvent) => void>();
   const onMouseUpDocument = React.useRef<(e: MouseEvent) => void>();
 
@@ -141,29 +151,6 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
 
   const [currentDrag, setCurrentDrag] = React.useState<DragState | undefined>();
 
-  const nodesById = React.useMemo(() => {
-    const keyed: Record<string, N> = {};
-    props.nodes.forEach((n) => {
-      keyed[n.id] = n;
-    });
-    return keyed;
-  }, [props.nodes]);
-
-  const edgesWithIds = React.useMemo(() => {
-    return props.edges.map((e) => ({
-      ...e,
-      id: e.id ?? `${e.sourceId} ~~~ ${e.targetId}`,
-    }));
-  }, [props.edges]);
-
-  const edgesById = React.useMemo(() => {
-    const keyed: Record<string, E> = {};
-    edgesWithIds.forEach((e) => {
-      keyed[e.id] = e;
-    });
-    return keyed;
-  }, [edgesWithIds]);
-
   const onMouseDownBackground = React.useCallback((e: React.MouseEvent<SVGElement>) => {
     if (shouldStartPan(e)) {
       currentPan.current = { screenSpaceLastX: e.screenX, screenSpaceLastY: e.screenY };
@@ -179,7 +166,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
         const { screenX, screenY } = e;
         if (shouldStartNodeDrag(e.nativeEvent, node)) {
           setCurrentDrag({
-            nodeId: node.id,
+            nodeId: id,
             screenSpaceStartX: screenX,
             screenSpaceStartY: screenY,
             screenSpaceCurrentX: screenX,
@@ -188,7 +175,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
         }
       }
     },
-    [currentDrag, shouldStartNodeDrag, props.onNodeDragStart, nodesById],
+    [shouldStartNodeDrag, props.onNodeDragStart, nodesById, currentDrag],
   );
 
   const onClickNode = React.useCallback(
@@ -197,8 +184,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
       if (props.onClickNode) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
-        const node = nodesById[id];
-        props.onClickNode(e, node);
+        props.onClickNode(e, nodesById[id]);
       }
     },
     [props.onClickNode, currentDrag, nodesById],
@@ -213,7 +199,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
         props.onClickEdge(e, edge, nodesById[edge.sourceId], nodesById[edge.targetId]);
       }
     },
-    [props.onClickEdge, edgesById, nodesById],
+    [props.onClickEdge, nodesById, edgesById],
   );
 
   const onWheelContainer = React.useCallback((e: React.WheelEvent) => {
@@ -320,7 +306,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
           onMouseDown={onMouseDownBackground}
           onClick={props.onClickBackground}
         />
-        {edgesWithIds.map((e) => {
+        {props.edges.map((e) => {
           let source = nodesById[e.sourceId];
           let target = nodesById[e.targetId];
 
@@ -376,6 +362,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(props: Props
             </g>
           );
         })}
+        {props.children}
       </g>
     </svg>
   );
