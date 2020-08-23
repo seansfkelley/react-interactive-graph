@@ -6,6 +6,8 @@ import { Graph, Node, Edge, pathD, Position } from "../";
 import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
 
+const SELECTION_COLOR = "#5558fc";
+
 let _id = 0;
 
 function nextId() {
@@ -98,9 +100,9 @@ export function Demo() {
             cx={node.x}
             cy={node.y}
             r="40"
-            strokeWidth={1}
+            strokeWidth={isSelected ? 2 : 1}
             fill="white"
-            stroke={isSelected ? "lightblue" : "black"}
+            stroke={isSelected ? SELECTION_COLOR : "black"}
             filter={isSelected ? "url(#drop-shadow-node-highlight)" : "url(#drop-shadow-node)"}
           />
           <text x={node.x} y={node.y} textAnchor="middle" dominantBaseline="middle">
@@ -115,19 +117,21 @@ export function Demo() {
   const renderEdge = React.useCallback(
     (edge: Edge, source: Node, target: Node) => {
       const isSelected = edgeSelection.has(edge.id);
+      const d = pathD(source, target);
       return (
         <>
+          {/* Superfat edge to make the click target larger. */}
+          <path d={d} stroke="transparent" strokeWidth={40} />
           <path
-            d={pathD(source, target)}
-            stroke={isSelected ? "lightblue" : "transparent"}
-            // Superfat edge to make the click target larger.
-            strokeWidth={isSelected ? 4 : 40}
+            d={d}
+            stroke={isSelected ? SELECTION_COLOR : "transparent"}
+            strokeWidth={3}
             filter={isSelected ? "url(#drop-shadow-edge-highlight)" : undefined}
           />
           <path
-            d={pathD(source, target)}
+            d={d}
             stroke="black"
-            strokeWidth={2}
+            strokeWidth={isSelected ? 1 : 2}
             filter={isSelected ? undefined : "url(#drop-shadow-edge)"}
           />
         </>
@@ -208,13 +212,13 @@ export function Demo() {
             <feDropShadow dx="1" dy="1" stdDeviation="2" floodColor="black" />
           </filter>
           <filter id="drop-shadow-node-highlight">
-            <feDropShadow dx="1" dy="1" stdDeviation="1" floodColor="blue" />
+            <feDropShadow dx="1" dy="1" stdDeviation="3" floodColor={SELECTION_COLOR} />
           </filter>
           <filter id="drop-shadow-edge">
             <feDropShadow dx="1" dy="1" stdDeviation="1" floodColor="black" />
           </filter>
           <filter id="drop-shadow-edge-highlight">
-            <feDropShadow dx="1" dy="1" stdDeviation="2" floodColor="blue" />
+            <feDropShadow dx="1" dy="1" stdDeviation="2" floodColor={SELECTION_COLOR} />
           </filter>
         </defs>
       </Graph>
