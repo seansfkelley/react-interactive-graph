@@ -1,12 +1,15 @@
 import * as React from "react";
 import { SketchPicker } from "react-color";
 import type { Grid } from "../";
+import { objectValues } from "../lang";
+import { ExampleType } from "./exampleData";
 
 export interface Props {
   grid: Required<Grid>;
   onChangeGrid: (g: Required<Grid>) => void;
   gridEnabled: boolean;
   onChangeGridEnabled: (enabled: boolean) => void;
+  onChangeExampleType: (type: ExampleType) => void;
 }
 
 const popover = {
@@ -71,6 +74,17 @@ export function ControlStrip(props: Props) {
           />
           dot color
         </button>
+        <select
+          onChange={(e) => {
+            props.onChangeExampleType(e.currentTarget.value as ExampleType);
+          }}
+          value=""
+        >
+          <option value="">~ generate a graph ~</option>
+          {objectValues(ExampleType).map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </select>
       </div>
       {colorPickerVisible && (
         <div style={popover}>

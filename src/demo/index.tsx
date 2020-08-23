@@ -16,42 +16,19 @@ import {
 import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
 import { ControlStrip } from "./ControlStrip";
+import { ExampleType, GENERATE, nextId } from "./exampleData";
 
 const SELECTION_COLOR = "#5558fc";
 
-let _id = 0;
-
-function nextId() {
-  return (++_id).toString();
-}
-
-const INITIAL_NODES: Node[] = [
-  { id: nextId(), x: -100, y: -100 },
-  { id: nextId(), x: 150, y: 175 },
-  { id: nextId(), x: 0, y: 50 },
-  { id: nextId(), x: 50, y: -100 },
-];
-const INITIAL_EDGES: Edge[] = [
-  {
-    id: nextId(),
-    sourceId: INITIAL_NODES[0].id,
-    targetId: INITIAL_NODES[1].id,
-  },
-  {
-    id: nextId(),
-    sourceId: INITIAL_NODES[1].id,
-    targetId: INITIAL_NODES[2].id,
-  },
-  {
-    id: nextId(),
-    sourceId: INITIAL_NODES[2].id,
-    targetId: INITIAL_NODES[3].id,
-  },
-];
-
 export function Demo() {
-  const [nodes, setNodes] = React.useState<Node[]>(INITIAL_NODES);
-  const [edges, setEdges] = React.useState<Edge[]>(INITIAL_EDGES);
+  const [nodes, setNodes] = React.useState<Node[]>([]);
+  const [edges, setEdges] = React.useState<Edge[]>([]);
+
+  React.useEffect(() => {
+    const { nodes, edges } = GENERATE[ExampleType.SIMPLE]();
+    setNodes(nodes);
+    setEdges(edges);
+  }, []);
 
   const [gridEnabled, setGridEnabled] = React.useState(true);
   const [grid, setGrid] = React.useState<Required<Grid>>({
@@ -175,6 +152,11 @@ export function Demo() {
         onChangeGridEnabled={setGridEnabled}
         grid={grid}
         onChangeGrid={setGrid}
+        onChangeExampleType={(t) => {
+          const { nodes, edges } = GENERATE[t]();
+          setNodes(nodes);
+          setEdges(edges);
+        }}
       />
       <Graph
         style={{ flex: 1 }}
