@@ -89,6 +89,9 @@ export function pathD(source: Position, target: Position) {
 export const DEFAULT_MIN_ZOOM = 0.25;
 export const DEFAULT_MAX_ZOOM = 2;
 export const DEFAULT_ZOOM_SPEED = 0.15;
+export const DEFAULT_GRID_DOT_SIZE = 2;
+export const DEFAULT_GRID_SPACING = 50;
+export const DEFAULT_GRID_FILL = "#dddddd";
 
 interface NodeMouseState {
   nodeId: string;
@@ -152,9 +155,12 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     onCreateEdgeStart,
     onCreateEdge,
   } = props;
-  const gridDotSize = (typeof props.grid !== "boolean" ? props.grid?.dotSize : undefined) ?? 2;
-  const gridSpacing = (typeof props.grid !== "boolean" ? props.grid?.spacing : undefined) ?? 50;
-  const gridFill = (typeof props.grid !== "boolean" ? props.grid?.fill : undefined) ?? "lightgrey";
+  const gridDotSize =
+    (typeof props.grid !== "boolean" ? props.grid?.dotSize : undefined) ?? DEFAULT_GRID_DOT_SIZE;
+  const gridSpacing =
+    (typeof props.grid !== "boolean" ? props.grid?.spacing : undefined) ?? DEFAULT_GRID_SPACING;
+  const gridFill =
+    (typeof props.grid !== "boolean" ? props.grid?.fill : undefined) ?? DEFAULT_GRID_FILL;
 
   const [nodeMouseState, setNodeMouseState] = React.useState<NodeMouseState | undefined>();
 

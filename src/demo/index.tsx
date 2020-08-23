@@ -1,10 +1,21 @@
 import * as React from "react";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import * as ReactDOM from "react-dom";
-import { Graph, Node, Edge, pathD, Position } from "../";
+import {
+  Graph,
+  Node,
+  Edge,
+  pathD,
+  Position,
+  Grid,
+  DEFAULT_GRID_DOT_SIZE,
+  DEFAULT_GRID_SPACING,
+  DEFAULT_GRID_FILL,
+} from "../";
 
 import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
+import { ControlStrip } from "./ControlStrip";
 
 const SELECTION_COLOR = "#5558fc";
 
@@ -43,6 +54,11 @@ export function Demo() {
   const [edges, setEdges] = React.useState<Edge[]>(INITIAL_EDGES);
 
   const [gridEnabled, setGridEnabled] = React.useState(true);
+  const [grid, setGrid] = React.useState<Required<Grid>>({
+    dotSize: DEFAULT_GRID_DOT_SIZE,
+    spacing: DEFAULT_GRID_SPACING,
+    fill: DEFAULT_GRID_FILL,
+  });
 
   const nodeSelection = useSelectionSet();
   const edgeSelection = useSelectionSet();
@@ -154,18 +170,15 @@ export function Demo() {
 
   return (
     <>
-      <div>
-        <input
-          type="checkbox"
-          checked={gridEnabled}
-          onChange={() => {
-            setGridEnabled(!gridEnabled);
-          }}
-        />
-      </div>
+      <ControlStrip
+        gridEnabled={gridEnabled}
+        onChangeGridEnabled={setGridEnabled}
+        grid={grid}
+        onChangeGrid={setGrid}
+      />
       <Graph
         style={{ flex: 1 }}
-        grid={gridEnabled}
+        grid={gridEnabled && grid}
         nodes={nodes}
         edges={edges}
         onDragEndNode={(_, n, x, y) => {
