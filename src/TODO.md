@@ -1,7 +1,11 @@
 # TODO
 
+- improve default/demo appearance
+  - include hover states for interactive things
+- arrow heads for edges
+- allow implementing dragging multiple selected nodes at once
+- better hotkeys (ctrl/shift split is annoying)
 - maybe wrap core graph component with some sane defaults like for selection and deletion and node/edge creation?
-- context menus?
 - edge hover: how to only mark hovering when near the actual line?
 - how to change the appearance of nodes that are being hovered for edge creation?
 - snap-to-grid
@@ -15,8 +19,17 @@
   - show pan/zoom values and allow settings/disabling them
   - allow customizing grid
   - basic autolayout implementation
+  - explicit "creation" tool rather than just using different modifiers
+    - in create mode, unmodified click on background/nodes creates nodes/edges (respectively)
+    - in create mode, shift switches to pan mode (can we allow pan-start when clicking on a node?)
+    - in view mode, unmodified click on background pans
+    - in view mode, unmodified click on a node drags it
+    - in view mode, shift switches to box select
+    - in both modes, unmodified click on node/edge selects them (for deletion)
+    - in both modes, pinch and scroll zoom
   - what else?
 - CSS classes all over the place to allow for customization
 - perf?
 - DOM rendering?
 - canvas rendering?
+- audit event handling to make sure it works as intended (for instance, node drag/background click overlap in using document-mouse-up)
