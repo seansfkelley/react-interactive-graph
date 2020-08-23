@@ -11,7 +11,7 @@ import * as React from "react";
 
 export function useDocumentEvent<K extends keyof DocumentEventMap>(
   type: K,
-  listener: (this: Document, ev: DocumentEventMap[K]) => any,
+  listener: (this: Document, ev: DocumentEventMap[K]) => unknown,
 ) {
   React.useEffect(() => {
     const capturedType = type;

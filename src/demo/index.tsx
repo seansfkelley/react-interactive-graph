@@ -1,4 +1,6 @@
+// eslint-disable-next-line import/no-extraneous-dependencies
 import * as React from "react";
+// eslint-disable-next-line import/no-extraneous-dependencies
 import * as ReactDOM from "react-dom";
 import { Graph, Node, Edge, pathD, Position } from "../";
 // TODO: Probably shouldn't reach into this internal import?
