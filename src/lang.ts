@@ -14,7 +14,7 @@ export function assertNever(v: never): never {
   throw new Error(`assertion failure: expected ${v} to be never`);
 }
 
-export function keyBy<T extends Record<string, unknown>, K extends PropertyNamesOfType<T, string>>(
+export function keyBy<T extends object, K extends PropertyNamesOfType<T, string>>(
   objects: T[],
   key: K,
 ): Record<string, T> {

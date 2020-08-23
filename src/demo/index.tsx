@@ -1,97 +1,15 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import * as React from "react";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import * as ReactDOM from "react-dom";
 import { Graph, Node, Edge, pathD, Position } from "../";
-// TODO: Probably shouldn't reach into this internal import?
-import { objectValues } from "../lang";
+
+import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
 
 let _id = 0;
 
 function nextId() {
   return (++_id).toString();
-}
-
-interface SelectionSet<K extends string> {
-  count(): number;
-  has(type: K, id: string): boolean;
-  add(type: K, id: string): void;
-  remove(type: K, id: string): void;
-  toggle(type: K, id: string): void;
-  clear(type?: K): void;
-}
-
-function useSelectionSet<K extends string>(): SelectionSet<K> {
-  const sets: { current: Partial<Record<K, Set<string> | undefined>> } = React.useRef({});
-
-  const count = React.useCallback(
-    () =>
-      objectValues<Set<string> | undefined>(sets.current).reduce((sum, set) => sum + set!.size, 0),
-    [],
-  );
-
-  const has = React.useCallback((type: K, id: string) => {
-    const s = sets.current[type];
-    return s && s.has(id);
-  }, []);
-
-  const add = React.useCallback((type: K, id: string) => {
-    if (!sets.current[type]) {
-      sets.current[type] = new Set();
-    }
-    const shouldUpdate = !sets.current[type]!.has(id);
-    sets.current[type]!.add(id);
-    if (shouldUpdate) {
-      updateSelectionSet();
-    }
-  }, []);
-
-  const remove = React.useCallback((type: K, id: string) => {
-    if (sets.current[type]?.delete(id)) {
-      updateSelectionSet();
-    }
-  }, []);
-
-  const toggle = React.useCallback((type: K, id: string) => {
-    if (!sets.current[type]) {
-      sets.current[type] = new Set();
-      sets.current[type]!.add(id);
-    } else if (sets.current[type]!.has(id)) {
-      sets.current[type]!.delete(id);
-    } else {
-      sets.current[type]!.add(id);
-    }
-    updateSelectionSet();
-  }, []);
-
-  const clear = React.useCallback((type?: K) => {
-    if (type == null) {
-      sets.current = {};
-    } else {
-      sets.current[type]?.clear();
-    }
-    updateSelectionSet();
-  }, []);
-
-  function make(): SelectionSet<K> {
-    return {
-      count,
-      has,
-      add,
-      remove,
-      toggle,
-      clear,
-    };
-  }
-
-  const [selectionSet, setSelectionSet] = React.useState<SelectionSet<K>>(make);
-
-  const updateSelectionSet = React.useCallback(() => {
-    setSelectionSet(make());
-  }, [count, has, add, remove, toggle, clear]);
-
-  return selectionSet;
 }
 
 const INITIAL_NODES: Node[] = [
@@ -124,7 +42,8 @@ export function Demo() {
 
   const [gridEnabled, setGridEnabled] = React.useState(true);
 
-  const selection = useSelectionSet<"node" | "edge">();
+  const nodeSelection = useSelectionSet();
+  const edgeSelection = useSelectionSet();
   const isCreatingEdge = React.useRef(false);
 
   const onCreateEdgeStart = React.useCallback((e: React.MouseEvent) => {
@@ -146,18 +65,18 @@ export function Demo() {
     (e: KeyboardEvent) => {
       // TODO: Should probably use keycodes here.
       if (e.key === "Delete" || e.key === "Backspace") {
-        setNodes((nodes) => nodes.filter(({ id }) => !selection.has("node", id)));
+        setNodes((nodes) => nodes.filter(({ id }) => !nodeSelection.has(id)));
         setEdges((edges) =>
           edges.filter(
             ({ id, sourceId, targetId }) =>
-              !selection.has("edge", id) &&
-              !selection.has("node", sourceId) &&
-              !selection.has("node", targetId),
+              !edgeSelection.has(id) &&
+              !nodeSelection.has(sourceId) &&
+              !nodeSelection.has(targetId),
           ),
         );
       }
     },
-    [selection],
+    [nodeSelection, edgeSelection],
   );
 
   useDocumentEvent("keyup", onDocumentKeyUp);
@@ -172,7 +91,7 @@ export function Demo() {
 
   const renderNode = React.useCallback(
     (node: Node) => {
-      const isSelected = selection.has("node", node.id);
+      const isSelected = nodeSelection.has(node.id);
       return (
         <>
           <circle
@@ -190,12 +109,12 @@ export function Demo() {
         </>
       );
     },
-    [selection],
+    [nodeSelection],
   );
 
   const renderEdge = React.useCallback(
     (edge: Edge, source: Node, target: Node) => {
-      const isSelected = selection.has("edge", edge.id);
+      const isSelected = edgeSelection.has(edge.id);
       return (
         <>
           <path
@@ -214,7 +133,7 @@ export function Demo() {
         </>
       );
     },
-    [selection],
+    [edgeSelection],
   );
 
   const renderIncompleteEdge = React.useCallback((source: Node, target: Position) => {
@@ -255,24 +174,27 @@ export function Demo() {
           if (event.shiftKey) {
             // nop; this is the hotkey for dragging
           } else if (event.metaKey) {
-            selection.toggle("node", n.id);
+            nodeSelection.toggle(n.id);
           } else {
-            selection.clear();
-            selection.add("node", n.id);
+            edgeSelection.clear();
+            nodeSelection.clear();
+            nodeSelection.add(n.id);
           }
         }}
         onClickEdge={(event, e) => {
           if (event.shiftKey) {
             // nop; this is the hotkey for dragging
           } else if (event.metaKey) {
-            selection.toggle("edge", e.id);
+            edgeSelection.toggle(e.id);
           } else {
-            selection.clear();
-            selection.add("edge", e.id);
+            nodeSelection.clear();
+            edgeSelection.clear();
+            edgeSelection.add(e.id);
           }
         }}
         onClickBackground={(e, { x, y }) => {
-          selection.clear();
+          nodeSelection.clear();
+          edgeSelection.clear();
           if (e.shiftKey) {
             setNodes((nodes) => [...nodes, { id: nextId(), x, y }]);
           }

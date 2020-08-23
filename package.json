@@ -15,6 +15,9 @@
     "prepublishOnly": "tsc",
     "serve": "parcel src/demo/index.html"
   },
+  "peerDepencencies": {
+    "react": "^16.13.1"
+  },
   "devDependencies": {
     "@types/react": "^16.9.46",
     "@types/react-dom": "^16.9.8",

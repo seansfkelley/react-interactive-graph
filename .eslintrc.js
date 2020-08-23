@@ -13,6 +13,7 @@ module.exports = {
     "prefer-const": "error",
     "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/ban-types": "off",
 
     "no-unused-vars": "off",
     // https://github.com/typescript-eslint/typescript-eslint/blob/master/packages/eslint-plugin/docs/rules/no-unused-vars.md
@@ -28,6 +29,6 @@ module.exports = {
     "react-hooks/exhaustive-deps": "error",
 
     "import/no-default-export": "error",
-    "import/no-extraneous-dependencies": ["error", { devDependencies: false }],
+    "import/no-extraneous-dependencies": "error",
   },
 };

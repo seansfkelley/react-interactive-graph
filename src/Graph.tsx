@@ -4,6 +4,14 @@ import type { Node, Edge, Position } from "./types";
 import { assertNonNull, keyBy } from "./lang";
 import { useDocumentEvent } from "./hooks";
 
+interface PanzoomEvent {
+  detail: {
+    x: number;
+    y: number;
+    scale: number;
+  };
+}
+
 export interface Grid {
   dotSize?: number;
   spacing?: number;
@@ -134,6 +142,16 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const shouldStartNodeDrag = props.shouldStartNodeDrag ?? defaultShouldStartNodeDrag;
   const shouldStartPan = props.shouldStartPan ?? defaultShouldStartPan;
+  const {
+    onClickBackground,
+    onClickNode,
+    onClickEdge,
+    onDragStartNode,
+    onDragMoveNode,
+    onDragEndNode,
+    onCreateEdgeStart,
+    onCreateEdge,
+  } = props;
   const gridDotSize = (typeof props.grid !== "boolean" ? props.grid?.dotSize : undefined) ?? 2;
   const gridSpacing = (typeof props.grid !== "boolean" ? props.grid?.spacing : undefined) ?? 50;
   const gridFill = (typeof props.grid !== "boolean" ? props.grid?.fill : undefined) ?? "lightgrey";
@@ -150,7 +168,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     transform.pan(rect.width / 2, rect.height / 2, { force: true });
   }, []);
 
-  const getLogicalPosition = React.useCallback((e: React.MouseEvent | MouseEvent): Position => {
+  const toWorldSpacePosition = React.useCallback((e: React.MouseEvent | MouseEvent): Position => {
     const { current: root } = rootRef;
     assertNonNull(root);
     const { current: transform } = transformRef;
@@ -166,32 +184,38 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     };
   }, []);
 
-  const onMouseDownBackground = React.useCallback((e: React.MouseEvent<SVGElement>) => {
-    if (shouldStartPan(e)) {
-      const { screenX, screenY } = e;
-      panRef.current = {
-        screenSpaceStartX: screenX,
-        screenSpaceStartY: screenY,
-        screenSpaceLastX: screenX,
-        screenSpaceLastY: screenY,
-      };
-    }
-  }, []);
-
-  const onMouseUpBackground = React.useCallback((e: React.MouseEvent) => {
-    if (props.onClickBackground) {
-      // Note that this only works because this handler fires before the document handler, which
-      // is the one that ends the panning.
-      const { current: pan } = panRef;
-      if (
-        !pan ||
-        (Math.abs(pan.screenSpaceStartX - e.screenX) <= 2 &&
-          Math.abs(pan.screenSpaceStartY - e.screenY) <= 2)
-      ) {
-        props.onClickBackground(e, getLogicalPosition(e));
+  const onMouseDownBackground = React.useCallback(
+    (e: React.MouseEvent<SVGElement>) => {
+      if (shouldStartPan(e)) {
+        const { screenX, screenY } = e;
+        panRef.current = {
+          screenSpaceStartX: screenX,
+          screenSpaceStartY: screenY,
+          screenSpaceLastX: screenX,
+          screenSpaceLastY: screenY,
+        };
       }
-    }
-  }, []);
+    },
+    [shouldStartPan],
+  );
+
+  const onMouseUpBackground = React.useCallback(
+    (e: React.MouseEvent) => {
+      if (onClickBackground) {
+        // Note that this only works because this handler fires before the document handler, which
+        // is the one that ends the panning.
+        const { current: pan } = panRef;
+        if (
+          !pan ||
+          (Math.abs(pan.screenSpaceStartX - e.screenX) <= 2 &&
+            Math.abs(pan.screenSpaceStartY - e.screenY) <= 2)
+        ) {
+          onClickBackground(e, toWorldSpacePosition(e));
+        }
+      }
+    },
+    [onClickBackground, toWorldSpacePosition],
+  );
 
   const onMouseDownNode = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
@@ -200,7 +224,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       const node = nodesById[id];
       const { screenX, screenY } = e;
       // TODO: This is a little odd to have a callback + check wrapped up in one method.
-      if (props.onCreateEdgeStart?.(e, node)) {
+      if (onCreateEdgeStart?.(e, node)) {
         setIncompleteEdge({
           source: node,
           screenSpaceStartX: screenX,
@@ -209,47 +233,52 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           screenSpaceCurrentY: screenY,
         });
       } else if (nodeMouseState == null) {
+        const dragging = shouldStartNodeDrag(e.nativeEvent, node);
+
         setNodeMouseState({
           nodeId: id,
-          dragging: shouldStartNodeDrag(e.nativeEvent, node),
+          dragging,
           screenSpaceStartX: screenX,
           screenSpaceStartY: screenY,
           screenSpaceCurrentX: screenX,
           screenSpaceCurrentY: screenY,
         });
+        if (dragging) {
+          onDragStartNode?.(e.nativeEvent, node);
+        }
       }
     },
-    [shouldStartNodeDrag, props.onDragStartNode, nodesById, nodeMouseState],
+    [onCreateEdgeStart, shouldStartNodeDrag, onDragStartNode, nodesById, nodeMouseState],
   );
 
   const onMouseUpNode = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
-      if (incompleteEdge && props.onCreateEdge) {
+      if (incompleteEdge && onCreateEdge) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
         const node = nodesById[id];
-        props.onCreateEdge(e, incompleteEdge.source, node);
+        onCreateEdge(e, incompleteEdge.source, node);
       }
     },
-    [props.onCreateEdge, incompleteEdge],
+    [onCreateEdge, incompleteEdge, nodesById],
   );
 
-  const onClickEdge = React.useCallback(
+  const onClickEdgeWrapper = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
-      if (props.onClickEdge) {
+      if (onClickEdge) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
         const edge = edgesById[id];
-        props.onClickEdge(
+        onClickEdge(
           e,
           edge,
           nodesById[edge.sourceId],
           nodesById[edge.targetId],
-          getLogicalPosition(e),
+          toWorldSpacePosition(e),
         );
       }
     },
-    [props.onClickEdge, nodesById, edgesById],
+    [onClickEdge, nodesById, edgesById, toWorldSpacePosition],
   );
 
   const onWheelContainer = React.useCallback((e: React.WheelEvent) => {
@@ -263,7 +292,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
       if (nodeMouseState?.dragging) {
         const node = nodesById[nodeMouseState.nodeId];
-        props.onDragMoveNode?.(
+        onDragMoveNode?.(
           e,
           node,
           (screenX - nodeMouseState.screenSpaceStartX) / scale + node.x,
@@ -300,7 +329,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         };
       }
     },
-    [nodeMouseState, nodesById],
+    [onDragMoveNode, nodeMouseState, nodesById],
   );
 
   useDocumentEvent("mousemove", onMouseMoveDocument);
@@ -312,7 +341,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         const { screenX, screenY } = e;
         if (nodeMouseState.dragging) {
           const scale = transformRef.current?.getScale() ?? 1;
-          props.onDragEndNode?.(
+          onDragEndNode?.(
             e,
             node,
             (screenX - nodeMouseState.screenSpaceStartX) / scale + node.x,
@@ -322,7 +351,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           Math.abs(nodeMouseState.screenSpaceStartX - screenX) <= 2 &&
           Math.abs(nodeMouseState.screenSpaceStartY - screenY) <= 2
         ) {
-          props.onClickNode?.(e, node, getLogicalPosition(e));
+          onClickNode?.(e, node, toWorldSpacePosition(e));
         }
         setNodeMouseState(undefined);
       }
@@ -331,7 +360,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
       panRef.current = undefined;
     },
-    [nodeMouseState, nodesById, props.onDragEndNode, props.onClickNode],
+    [nodeMouseState, nodesById, onDragEndNode, onClickNode, toWorldSpacePosition],
   );
 
   useDocumentEvent("mouseup", onMouseUpDocument);
@@ -352,7 +381,10 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       // TODO: How do we remove this listener when this ref is unmounted?
       // TODO: Slight bug here: if the background is remounted but no pan is performed afterwards,
       // it'll be misaligned. We need to do this on background mount too.
-      e.addEventListener("panzoompan", ({ detail: { x, y, scale } }) => {
+      e.addEventListener("panzoompan", (poorlyTypedEvent: unknown) => {
+        const {
+          detail: { x, y },
+        } = poorlyTypedEvent as PanzoomEvent;
         // TODO: This is a cute trick to have an infinite background. We should also resize the
         // background to make sure it's always larger than the SVG's bounding box by a reasonable.
         // TODO: Pull this out into an InfiniteTiled component or something.
@@ -438,7 +470,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           }
 
           return (
-            <g key={e.id} data-id={e.id} className="panzoom-exclude" onClick={onClickEdge}>
+            <g key={e.id} data-id={e.id} className="panzoom-exclude" onClick={onClickEdgeWrapper}>
               {props.renderEdge(e, source, target)}
             </g>
           );
