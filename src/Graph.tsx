@@ -50,14 +50,14 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   renderEdge?: (edge: E, source: N, target: N) => React.ReactNode;
   renderIncompleteEdge?: (source: N, target: Position) => React.ReactNode;
 
-  onClickNode?: (e: React.MouseEvent, node: N) => void;
+  onClickNode?: (e: MouseEvent, node: N) => void;
   onClickEdge?: (e: React.MouseEvent, edge: E, source: N, target: N) => void;
   onClickBackground?: (e: React.MouseEvent) => void;
 
   shouldStartNodeDrag?: (e: MouseEvent, node: N) => boolean;
-  onNodeDragStart?: (e: MouseEvent, node: N) => void;
-  onNodeDragMove?: (e: MouseEvent, node: N, x: number, y: number) => void;
-  onNodeDragEnd?: (e: MouseEvent, node: N, x: number, y: number) => void;
+  onDragStartNode?: (e: MouseEvent, node: N) => void;
+  onDragMoveNode?: (e: MouseEvent, node: N, x: number, y: number) => void;
+  onDragEndNode?: (e: MouseEvent, node: N, x: number, y: number) => void;
 
   shouldStartCreateEdge?: (e: React.MouseEvent, source: N) => boolean;
   onStartCreateEdge?: (source: N) => void;
@@ -72,7 +72,7 @@ export const defaultShouldStartPan: NonNullable<Props["shouldStartPan"]> = (e) =
 };
 
 export const defaultShouldStartNodeDrag: NonNullable<Props["shouldStartNodeDrag"]> = (e) => {
-  return e.buttons === 1;
+  return e.buttons === 1 && e.shiftKey;
 };
 
 export const defaultRenderNode: NonNullable<Props["renderNode"]> = (n) => {
@@ -89,8 +89,9 @@ export const DEFAULT_MIN_ZOOM = 0.25;
 export const DEFAULT_MAX_ZOOM = 2;
 export const DEFAULT_ZOOM_SPEED = 0.15;
 
-interface DragState {
+interface NodeMouseState {
   nodeId: string;
+  dragging: boolean;
   screenSpaceStartX: number;
   screenSpaceStartY: number;
   screenSpaceCurrentX: number;
@@ -149,7 +150,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const gridDotSize = (typeof props.grid !== "boolean" ? props.grid?.dotSize : undefined) ?? 2;
   const gridSpacing = (typeof props.grid !== "boolean" ? props.grid?.spacing : undefined) ?? 50;
 
-  const [currentDrag, setCurrentDrag] = React.useState<DragState | undefined>();
+  const [nodeMouseState, setNodeMouseState] = React.useState<NodeMouseState | undefined>();
 
   const onMouseDownBackground = React.useCallback((e: React.MouseEvent<SVGElement>) => {
     if (shouldStartPan(e)) {
@@ -159,35 +160,22 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const onMouseDownNode = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
-      if (currentDrag == null) {
+      if (nodeMouseState == null) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
         const node = nodesById[id];
         const { screenX, screenY } = e;
-        if (shouldStartNodeDrag(e.nativeEvent, node)) {
-          setCurrentDrag({
-            nodeId: id,
-            screenSpaceStartX: screenX,
-            screenSpaceStartY: screenY,
-            screenSpaceCurrentX: screenX,
-            screenSpaceCurrentY: screenY,
-          });
-        }
+        setNodeMouseState({
+          nodeId: id,
+          dragging: shouldStartNodeDrag(e.nativeEvent, node),
+          screenSpaceStartX: screenX,
+          screenSpaceStartY: screenY,
+          screenSpaceCurrentX: screenX,
+          screenSpaceCurrentY: screenY,
+        });
       }
     },
-    [shouldStartNodeDrag, props.onNodeDragStart, nodesById, currentDrag],
-  );
-
-  const onClickNode = React.useCallback(
-    (e: React.MouseEvent<SVGGElement>) => {
-      // TODO: How to prevent this firing after a drag finishes?
-      if (props.onClickNode) {
-        const { id } = e.currentTarget.dataset;
-        assertNonNull(id);
-        props.onClickNode(e, nodesById[id]);
-      }
-    },
-    [props.onClickNode, currentDrag, nodesById],
+    [shouldStartNodeDrag, props.onDragStartNode, nodesById, nodeMouseState],
   );
 
   const onClickEdge = React.useCallback(
@@ -211,16 +199,16 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       const { screenX, screenY } = e;
       const scale = panzoom.current?.getScale() ?? 1;
 
-      if (currentDrag) {
-        const node = nodesById[currentDrag.nodeId];
-        props.onNodeDragMove?.(
+      if (nodeMouseState?.dragging) {
+        const node = nodesById[nodeMouseState.nodeId];
+        props.onDragMoveNode?.(
           e,
           node,
-          (screenX - currentDrag.screenSpaceStartX) / scale + node.x,
-          (screenY - currentDrag.screenSpaceStartY) / scale + node.y,
+          (screenX - nodeMouseState.screenSpaceStartX) / scale + node.x,
+          (screenY - nodeMouseState.screenSpaceStartY) / scale + node.y,
         );
-        setCurrentDrag({
-          ...currentDrag,
+        setNodeMouseState({
+          ...nodeMouseState,
           screenSpaceCurrentX: screenX,
           screenSpaceCurrentY: screenY,
         });
@@ -238,26 +226,34 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         };
       }
     },
-    [currentDrag, nodesById],
+    [nodeMouseState, nodesById],
   );
 
   onMouseUpDocument.current = React.useCallback(
     (e: MouseEvent) => {
-      if (currentDrag) {
-        const node = nodesById[currentDrag.nodeId];
-        const scale = panzoom.current?.getScale() ?? 1;
-        props.onNodeDragEnd?.(
-          e,
-          node,
-          (e.screenX - currentDrag.screenSpaceStartX) / scale + node.x,
-          (e.screenY - currentDrag.screenSpaceStartY) / scale + node.y,
-        );
-        setCurrentDrag(undefined);
+      if (nodeMouseState) {
+        const node = nodesById[nodeMouseState.nodeId];
+        const { screenX, screenY } = e;
+        if (nodeMouseState.dragging) {
+          const scale = panzoom.current?.getScale() ?? 1;
+          props.onDragEndNode?.(
+            e,
+            node,
+            (screenX - nodeMouseState.screenSpaceStartX) / scale + node.x,
+            (screenY - nodeMouseState.screenSpaceStartY) / scale + node.y,
+          );
+        } else if (
+          Math.abs(nodeMouseState.screenSpaceStartX - screenX) <= 2 &&
+          Math.abs(nodeMouseState.screenSpaceStartY - screenY) <= 2
+        ) {
+          props.onClickNode?.(e, node);
+        }
+        setNodeMouseState(undefined);
       }
 
       currentPan.current = undefined;
     },
-    [currentDrag, nodesById],
+    [nodeMouseState, nodesById, props.onDragEndNode, props.onClickNode],
   );
 
   // This MUST have a stable identity, otherwise it gets called on every render; I guess because
@@ -311,26 +307,26 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           let target = nodesById[e.targetId];
 
           // TODO: Can this use translation or something less heavyweight like the node renderer?
-          if (currentDrag) {
-            if (currentDrag.nodeId === source.id) {
+          if (nodeMouseState) {
+            if (nodeMouseState.nodeId === source.id) {
               source = {
                 ...source,
                 x:
-                  (currentDrag.screenSpaceCurrentX - currentDrag.screenSpaceStartX) / scale +
+                  (nodeMouseState.screenSpaceCurrentX - nodeMouseState.screenSpaceStartX) / scale +
                   source.x,
                 y:
-                  (currentDrag.screenSpaceCurrentY - currentDrag.screenSpaceStartY) / scale +
+                  (nodeMouseState.screenSpaceCurrentY - nodeMouseState.screenSpaceStartY) / scale +
                   source.y,
               };
             }
-            if (currentDrag.nodeId === target.id) {
+            if (nodeMouseState.nodeId === target.id) {
               target = {
                 ...target,
                 x:
-                  (currentDrag.screenSpaceCurrentX - currentDrag.screenSpaceStartX) / scale +
+                  (nodeMouseState.screenSpaceCurrentX - nodeMouseState.screenSpaceStartX) / scale +
                   target.x,
                 y:
-                  (currentDrag.screenSpaceCurrentY - currentDrag.screenSpaceStartY) / scale +
+                  (nodeMouseState.screenSpaceCurrentY - nodeMouseState.screenSpaceStartY) / scale +
                   target.y,
               };
             }
@@ -344,17 +340,18 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         })}
         {props.nodes.map((n) => {
           const transform =
-            currentDrag?.nodeId === n.id
+            nodeMouseState?.nodeId === n.id
               ? `translate(${
-                  (currentDrag.screenSpaceCurrentX - currentDrag.screenSpaceStartX) / scale
-                }, ${(currentDrag.screenSpaceCurrentY - currentDrag.screenSpaceStartY) / scale})`
+                  (nodeMouseState.screenSpaceCurrentX - nodeMouseState.screenSpaceStartX) / scale
+                }, ${
+                  (nodeMouseState.screenSpaceCurrentY - nodeMouseState.screenSpaceStartY) / scale
+                })`
               : undefined;
           return (
             <g
               key={n.id}
               data-id={n.id}
               onMouseDown={onMouseDownNode}
-              onClick={onClickNode}
               transform={transform}
               className="panzoom-exclude"
             >

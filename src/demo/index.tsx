@@ -146,7 +146,7 @@ export function Demo() {
         grid={gridEnabled}
         nodes={nodes}
         edges={edges}
-        onNodeDragEnd={(_, n, x, y) => {
+        onDragEndNode={(_, n, x, y) => {
           setNodes(nodes.map((node) => (node.id === n.id ? { ...node, x, y } : node)));
         }}
         renderNode={renderNode}
