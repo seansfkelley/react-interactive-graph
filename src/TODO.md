@@ -1,11 +1,5 @@
 # TODO
 
-- selection:
-  - does this need to be built-in, or can user-defined click handlers on custom render functions do it?
-  - what about for edges?
-  - background click handler to allow implementing deselect?
-- deletion:
-  - does this need to be built-in, or can the consumer do selection/keypress handling themselves?
 - maybe wrap core graph component with some sane defaults like for selection and deletion and node/edge creation?
 - context menus?
 - edge hover: how to only mark hovering when near the actual line?

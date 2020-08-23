@@ -2,6 +2,7 @@ import * as React from "react";
 import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 import type { Node, Edge, Position } from "./types";
 import { assertNonNull, keyBy } from "./lang";
+import { useDocumentEvent } from "./hooks";
 
 export interface Grid {
   dotSize: number;
@@ -114,26 +115,6 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     props.edges,
   ]) as Record<string, E>;
 
-  const onMouseMoveDocument = React.useRef<(e: MouseEvent) => void>();
-  const onMouseUpDocument = React.useRef<(e: MouseEvent) => void>();
-
-  React.useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      onMouseMoveDocument.current?.(e);
-    };
-    document.addEventListener("mousemove", onMouseMove);
-
-    const onMouseUp = (e: MouseEvent) => {
-      onMouseUpDocument.current?.(e);
-    };
-    document.addEventListener("mouseup", onMouseUp);
-
-    return () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-  }, []);
-
   // Note that zooming and panning are handled separately. This is because, while we want to zoom
   // with all the normal interactions always (scroll, pinch), we only want to pan when interacting
   // with the background. This means we can't attach panzoom to a single element and be done with
@@ -194,7 +175,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     panzoom.current?.zoomWithWheel(e.nativeEvent);
   }, []);
 
-  onMouseMoveDocument.current = React.useCallback(
+  const onMouseMoveDocument = React.useCallback(
     (e: MouseEvent) => {
       const { screenX, screenY } = e;
       const scale = panzoom.current?.getScale() ?? 1;
@@ -229,7 +210,9 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     [nodeMouseState, nodesById],
   );
 
-  onMouseUpDocument.current = React.useCallback(
+  useDocumentEvent("mousemove", onMouseMoveDocument);
+
+  const onMouseUpDocument = React.useCallback(
     (e: MouseEvent) => {
       if (nodeMouseState) {
         const node = nodesById[nodeMouseState.nodeId];
@@ -255,6 +238,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     },
     [nodeMouseState, nodesById, props.onDragEndNode, props.onClickNode],
   );
+
+  useDocumentEvent("mouseup", onMouseUpDocument);
 
   // This MUST have a stable identity, otherwise it gets called on every render; I guess because
   // React wants to make sure that as the function identity changes it's always been called?
@@ -305,6 +290,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         {props.edges.map((e) => {
           let source = nodesById[e.sourceId];
           let target = nodesById[e.targetId];
+
+          if (source == null || target == null) {
+            // TODO: We should warn about this, but probably not explode?
+            return;
+          }
 
           // TODO: Can this use translation or something less heavyweight like the node renderer?
           if (nodeMouseState) {

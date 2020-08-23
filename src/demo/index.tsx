@@ -3,6 +3,7 @@ import * as ReactDOM from "react-dom";
 import { Graph, Node, Edge } from "../";
 // TODO: Probably shouldn't reach into this internal import?
 import { objectValues } from "../lang";
+import { useDocumentEvent } from "../hooks";
 
 interface SelectionSet<K extends string> {
   count(): number;
@@ -96,6 +97,26 @@ export function Demo() {
 
   const selection = useSelectionSet<"node" | "edge">();
 
+  const onDocumentKeyUp = React.useCallback(
+    (e: KeyboardEvent) => {
+      // TODO: Should probably use keycodes here.
+      if (e.key === "Delete" || e.key === "Backspace") {
+        setNodes((nodes) => nodes.filter(({ id }) => !selection.has("node", id)));
+        setEdges((edges) =>
+          edges.filter(
+            ({ id, sourceId, targetId }) =>
+              !selection.has("edge", id) &&
+              !selection.has("node", sourceId) &&
+              !selection.has("node", targetId),
+          ),
+        );
+      }
+    },
+    [selection],
+  );
+
+  useDocumentEvent("keyup", onDocumentKeyUp);
+
   const renderNode = React.useCallback(
     (node: Node) => {
       return (
@@ -152,7 +173,9 @@ export function Demo() {
         renderNode={renderNode}
         renderEdge={renderEdge}
         onClickNode={(event, n) => {
-          if (event.metaKey) {
+          if (event.shiftKey) {
+            // nop; this is the hotkey for dragging
+          } else if (event.metaKey) {
             selection.toggle("node", n.id);
           } else {
             selection.clear();
@@ -160,7 +183,9 @@ export function Demo() {
           }
         }}
         onClickEdge={(event, e) => {
-          if (event.metaKey) {
+          if (event.shiftKey) {
+            // nop; this is the hotkey for dragging
+          } else if (event.metaKey) {
             selection.toggle("edge", e.id);
           } else {
             selection.clear();
