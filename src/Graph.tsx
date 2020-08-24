@@ -104,6 +104,7 @@ interface EdgeCreateState<N extends Node> {
   target?: N;
   start: ScreenPosition;
   last: ScreenPosition;
+  didLeaveOriginalNode: boolean;
 }
 
 export function Graph<N extends Node = Node, E extends Edge = Edge>(
@@ -209,7 +210,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   }, []);
 
   const isWithinFudgeFactor = React.useCallback(
-    (e: MouseEvent, start: ScreenPosition) => {
+    (e: MouseEvent | React.MouseEvent, start: ScreenPosition) => {
       return (
         Math.abs(e.screenX - start.screenX) <= clickFudgeFactor &&
         Math.abs(e.screenY - start.screenY) <= clickFudgeFactor
@@ -250,8 +251,14 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       if (shouldStartCreateEdge?.(e, node)) {
         setIncompleteEdge({
           source: node,
+          // Note that we don't set target here; if you want to create a self-edge you have to leave
+          // and come back. This is... fine. If this behavior ever changes, make sure to change the
+          // semantics of didLeaveOriginalNode as well. That value is used to differentiate between
+          // self-edge creations and clicks without moving, and if you can self-edge create without
+          // moving, it'll have to change to compensate.
           start: { screenX, screenY },
           last: { screenX, screenY },
+          didLeaveOriginalNode: false,
         });
       } else {
         setDragState({
@@ -267,14 +274,20 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const onMouseUpNode = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
-      if (incompleteEdge && onCreateEdgeEnd) {
+      if (incompleteEdge) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
-        const node = nodesById[id];
-        onCreateEdgeEnd(e, incompleteEdge.source, node);
+        if (!isWithinFudgeFactor(e, incompleteEdge.start) || incompleteEdge.didLeaveOriginalNode) {
+          shouldSkipNextNodeClick.current = id;
+          if (onCreateEdgeEnd) {
+            const node = nodesById[id];
+            onCreateEdgeEnd(e, incompleteEdge.source, node);
+          }
+        }
+        setIncompleteEdge(undefined);
       }
     },
-    [onCreateEdgeEnd, incompleteEdge, nodesById],
+    [onCreateEdgeEnd, incompleteEdge, nodesById, isWithinFudgeFactor],
   );
 
   const onMouseEnterNode = React.useCallback(
@@ -296,7 +309,16 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   );
 
   const onMouseLeaveNode = React.useCallback(() => {
-    setIncompleteEdge((edge) => (edge ? { ...edge, target: undefined } : undefined));
+    setIncompleteEdge((edge) => {
+      // Check to see if we need to actually shallowly mutate and rerender first...
+      if (edge && (edge?.target != null || edge?.didLeaveOriginalNode !== true)) {
+        // We don't know if the node that's being left is the original node, but you can't
+        // enter another node without first leaving this one, so it's safe to set.
+        return { ...edge, target: undefined, didLeaveOriginalNode: true };
+      } else {
+        return edge;
+      }
+    });
   }, []);
 
   const onClickNodeWrapper = React.useCallback(
@@ -392,6 +414,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         panStateRef.current = undefined;
       }
 
+      // If we didn't release on a node, stop creation anyway.
       setIncompleteEdge(undefined);
     },
     [dragState, nodesById, onNodeDragEnd, isWithinFudgeFactor],
