@@ -70,6 +70,7 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
 
   className?: string;
   style?: React.SVGAttributes<SVGSVGElement>["style"];
+  clickFudgeFactor?: number;
 }
 
 export function pathD(source: Position, target: Position) {
@@ -82,6 +83,7 @@ export const DEFAULT_ZOOM_SPEED = 0.15;
 export const DEFAULT_GRID_DOT_SIZE = 2;
 export const DEFAULT_GRID_SPACING = 50;
 export const DEFAULT_GRID_FILL = "#dddddd";
+export const DEFAULT_CLICK_FUDGE_FACTOR = 2;
 
 interface ScreenPosition {
   screenX: number;
@@ -124,14 +126,42 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const rootRef = React.useRef<SVGSVGElement | null>(null);
   const backgroundRef = React.useRef<SVGRectElement | null>(null);
 
-  // Note that zooming and panning are handled separately. This is because, while we want to zoom
-  // with all the normal interactions always (scroll, pinch), we only want to pan when interacting
-  // with the background. This means we can't attach panzoom to a single element and be done with
-  // it. Furthermore, we want to have a single instance, because panning and zooming is stateful
-  // and we want to have a single source of truth. Therefore, we pick the element that should
-  // undergo the view transforms to host panzoom, and we forward pan events to it manually.
+  // Note that zooming and panning are handled separately. This is because -- while we want to zoom
+  // with all the normal interactions always (scroll, pinch) on the pan/zoom transform container
+  // that holds all graph entities -- we only want to pan when interacting with the background. This
+  // means we can't attach panzoom to a single element and be done with it. Furthermore, we want to
+  // have a single instance, because panning and zooming is stateful and we want to have a single
+  // source of truth. Lastly, zooming is mathier and I don't want to have to deal with the pinch
+  // interaction. Therefore, we pick the element that should undergo the view transforms to host
+  // panzoom and keep the zoom interactions enabled, then forward pans to it manually.
   const transformRef = React.useRef<PanzoomObject | undefined>();
-  const panRef = React.useRef<PanState | undefined>();
+  const panStateRef = React.useRef<PanState | undefined>();
+
+  // These two refs are a bit of a hack, but they seem stable enough. The idea is that both node
+  // dragging and background panning have the same problem: we want to support mouseup-mousedown to
+  // implement them and _also_ clicks, but we only want to fire one for any given pair. This
+  // solution is multifaceted:
+  //
+  //  - We rely on the native "onclick" event, rather than synthesizing our own from mouseup. This
+  //    should generally be safer, but we have to make sure to swallow it if we did drag or pan.
+  //  - The API shape means we don't have to commit up-front to whether a given motion is a drag or
+  //    pan. There are only "should start" and "finished", with no "did start" and "did move".
+  //    "Should" does not necessitate "did", so even if the consumer tells us that yes, this event
+  //    can start a drag/pan, we can still wait for a mouse move/up to decide which one to do.
+  //  - Fudge factor. Sometimes we _do_ trigger a drag/pan and a click off the same motion. This is
+  //    what clickFudgeFactor is for, but the idea is that the number is so small that a user might
+  //    not even notice that they technically dragged one pixel, so it shouldn't cause weird UX to
+  //    trigger a click after a tiny drag/pan.
+  //
+  // So, to put that all together: we _always_ capture the start position for a drag/pan, but also
+  // keep track of whether it should actually drag or pan. When we get a document mouseup, we
+  // inspect the start position to know if we should fire a click too. Then we set these refs to
+  // communicate to the click handler whether it should swallow or not. The HTML spec guarantees
+  // that a mouseup finishes getting handled before the corresponding click is started.
+  //
+  // Lastly, we use the ID rather than a boolean for the node variant simply for sanity-checking. It
+  // could be relaxed if necessary, but it seemed nice and free to backstop against and really weird
+  // race conditions that might arise from this state management.
   const shouldSkipNextNodeClick = React.useRef<string | undefined>();
   const shouldSkipNextBackgroundClick = React.useRef(false);
 
@@ -151,6 +181,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     (typeof props.grid !== "boolean" ? props.grid?.spacing : undefined) ?? DEFAULT_GRID_SPACING;
   const gridFill =
     (typeof props.grid !== "boolean" ? props.grid?.fill : undefined) ?? DEFAULT_GRID_FILL;
+  const clickFudgeFactor = props.clickFudgeFactor ?? DEFAULT_CLICK_FUDGE_FACTOR;
 
   const [dragState, setDragState] = React.useState<NodeDragState | undefined>();
 
@@ -180,10 +211,20 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     };
   }, []);
 
+  const isWithinFudgeFactor = React.useCallback(
+    (e: MouseEvent, start: ScreenPosition) => {
+      return (
+        Math.abs(e.screenX - start.screenX) <= clickFudgeFactor &&
+        Math.abs(e.screenY - start.screenY) <= clickFudgeFactor
+      );
+    },
+    [clickFudgeFactor],
+  );
+
   const onMouseDownBackground = React.useCallback(
     (e: React.MouseEvent<SVGElement>) => {
       const { screenX, screenY } = e;
-      panRef.current = {
+      panStateRef.current = {
         panning: shouldStartPan?.(e) ?? false,
         start: { screenX, screenY },
         last: { screenX, screenY },
@@ -194,7 +235,6 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const onClickBackgroundWrapper = React.useCallback(
     (e: React.MouseEvent) => {
-      console.log("get", shouldSkipNextBackgroundClick.current);
       if (shouldSkipNextBackgroundClick.current) {
         shouldSkipNextBackgroundClick.current = false;
       } else if (onClickBackground) {
@@ -274,6 +314,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   );
 
   const onWheelContainer = React.useCallback((e: React.WheelEvent) => {
+    // Wheel zooms are not bound by default, so forward them here.
     transformRef.current?.zoomWithWheel(e.nativeEvent);
   }, []);
 
@@ -282,7 +323,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       const { screenX, screenY } = e;
       const scale = transformRef.current?.getScale() ?? 1;
 
-      if (dragState) {
+      if (dragState?.dragging) {
         setDragState({
           ...dragState,
           last: { screenX, screenY },
@@ -291,15 +332,15 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
       setIncompleteEdge((edge) => (edge ? { ...edge, last: { screenX, screenY } } : undefined));
 
-      const { current: pan } = panRef;
-      if (pan) {
+      const { current: panState } = panStateRef;
+      if (panState?.panning) {
         transformRef.current?.pan(
-          (screenX - pan.last.screenX) / scale,
-          (screenY - pan.last.screenY) / scale,
+          (screenX - panState.last.screenX) / scale,
+          (screenY - panState.last.screenY) / scale,
           { relative: true, force: true },
         );
-        panRef.current = {
-          ...pan,
+        panStateRef.current = {
+          ...panState,
           last: { screenX, screenY },
         };
       }
@@ -312,33 +353,29 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const onMouseUpDocument = React.useCallback(
     (e: MouseEvent) => {
       if (dragState) {
-        const { screenX, screenY } = e;
-        if (dragState.start.screenX - screenX !== 0 || dragState.start.screenY - screenY !== 0) {
+        if (!isWithinFudgeFactor(e, dragState.start)) {
           shouldSkipNextNodeClick.current = dragState.id;
           if (onNodeDragEnd) {
             const node = nodesById[dragState.id];
             const scale = transformRef.current?.getScale() ?? 1;
             onNodeDragEnd(e, node, {
-              x: (screenX - dragState.start.screenX) / scale + node.x,
-              y: (screenY - dragState.start.screenY) / scale + node.y,
+              x: (e.screenX - dragState.start.screenX) / scale + node.x,
+              y: (e.screenY - dragState.start.screenY) / scale + node.y,
             });
           }
         }
         setDragState(undefined);
       }
 
-      const { current: pan } = panRef;
-      if (pan) {
-        if (pan.start.screenX - screenX === 0 && pan.start.screenY - screenY === 0) {
-          shouldSkipNextBackgroundClick.current = true;
-        }
-        panRef.current = undefined;
+      const { current: panState } = panStateRef;
+      if (panState) {
+        shouldSkipNextBackgroundClick.current = !isWithinFudgeFactor(e, panState.start);
+        panStateRef.current = undefined;
       }
-      console.log("set", shouldSkipNextBackgroundClick.current);
 
       setIncompleteEdge(undefined);
     },
-    [dragState, nodesById, onNodeDragEnd],
+    [dragState, nodesById, onNodeDragEnd, isWithinFudgeFactor],
   );
 
   useDocumentEvent("mouseup", onMouseUpDocument);
@@ -348,6 +385,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
   const { current: initializeTransform } = React.useRef((e: SVGGElement | null) => {
     if (e) {
       transformRef.current = Panzoom(e, {
+        // Per the comment on this ref, we forward panning commands manually. This is also why
+        // you'll see force: true set on those pan commands.
         disablePan: true,
         cursor: "default",
         // TODO: Are these values captured once, or do we capture a live reference to props?
