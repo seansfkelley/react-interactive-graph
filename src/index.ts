@@ -1,3 +1,3 @@
 export * from "./types";
-export * from "./util";
+export { PathType, PreferredPathDirection, pathD } from "./util";
 export * from "./Graph";
