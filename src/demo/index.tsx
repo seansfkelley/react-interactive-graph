@@ -6,6 +6,7 @@ import {
   Node,
   Edge,
   pathD,
+  selfEdgePathD,
   Position,
   Grid,
   DEFAULT_GRID_DOT_SIZE,
@@ -96,8 +97,15 @@ export function Demo() {
             stroke={isSelected ? SELECTION_COLOR : "black"}
             filter={isSelected ? "url(#drop-shadow-node-highlight)" : "url(#drop-shadow-node)"}
           />
-          <text x={node.x} y={node.y} textAnchor="middle" dominantBaseline="middle">
-            node id: {node.id}
+          <text
+            x={node.x}
+            y={node.y}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="36"
+            fontFamily="sans-serif"
+          >
+            {node.id}
           </text>
         </>
       );
@@ -110,7 +118,10 @@ export function Demo() {
       const source = snap(s);
       const target = snap(t);
       const isSelected = edgeSelection.has(edge.id);
-      const d = pathD(source, target, pathType, pathDirection);
+      const d =
+        source.id === target.id
+          ? selfEdgePathD(source, 150)
+          : pathD(source, target, pathType, pathDirection);
       return (
         <>
           {/* Superfat edge to make the click target larger. */}
@@ -135,17 +146,25 @@ export function Demo() {
     [edgeSelection, pathType, pathDirection, snap],
   );
 
-  const renderIncompleteEdge = React.useCallback((source: Node, target: Position) => {
-    return (
-      <path
-        d={pathD(source, target)}
-        stroke="black"
-        strokeWidth={2}
-        strokeDasharray="20,10"
-        filter="url(#drop-shadow-edge)"
-      />
-    );
-  }, []);
+  const renderIncompleteEdge = React.useCallback(
+    (source: Node, position: Position, target: Node | undefined) => {
+      return (
+        <path
+          d={
+            source.id === target?.id
+              ? selfEdgePathD(source, 150)
+              : pathD(source, target ?? position)
+          }
+          stroke="black"
+          strokeWidth={2}
+          strokeDasharray="20,10"
+          fill="transparent"
+          filter="url(#drop-shadow-edge)"
+        />
+      );
+    },
+    [],
+  );
 
   return (
     <>
@@ -193,16 +212,16 @@ export function Demo() {
           }
         }}
         onClickBackground={(event, { x, y }) => {
-          if (event.shiftKey) {
+          if (event.altKey) {
             setNodes((nodes) => [...nodes, { id: nextId(), x, y }]);
           } else {
             nodeSelection.clear();
             edgeSelection.clear();
           }
         }}
-        shouldStartPan={(event) => !event.shiftKey}
-        shouldStartNodeDrag={(event) => !event.shiftKey}
-        shouldStartCreateEdge={(event) => event.shiftKey}
+        shouldStartPan={(event) => !event.altKey}
+        shouldStartNodeDrag={(event) => !event.altKey}
+        shouldStartCreateEdge={(event) => event.altKey}
         onNodeDragEnd={(_, n, position) => {
           setNodes(nodes.map((node) => (node.id === n.id ? { ...node, ...position } : node)));
         }}

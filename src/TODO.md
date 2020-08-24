@@ -1,8 +1,12 @@
 # TODO
 
+- arrow heads for edges
+- support multiple edges and self-edges
+- straight-edged self-edges
 - improve default/demo appearance
   - include hover states for interactive things
-- arrow heads for edges
+  - show pan/zoom values and allow settings/disabling them
+  - clean up visuals
 - allow implementing dragging multiple selected nodes at once
 - maybe wrap core graph component with some sane defaults like for selection and deletion and node/edge creation?
 - edge hover: how to only mark hovering when near the actual line?
@@ -12,10 +16,6 @@
 - implement pan/zoom controlled props and constraints
   - maybe "constraints" are really "settings"?
 - pan/zoom controls
-- flesh out demo pages
-  - show pan/zoom values and allow settings/disabling them
-  - basic autolayout implementation
-  - what else?
 - CSS classes all over the place to allow for customization
 - perf?
 - DOM rendering?

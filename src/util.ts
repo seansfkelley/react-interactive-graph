@@ -39,6 +39,12 @@ export function pathD(
   }
 }
 
+export function selfEdgePathD(location: Position, radius: number) {
+  return `M${location.x},${location.y}C${location.x},${location.y - radius},${
+    location.x + radius
+  },${location.y},${location.x},${location.y}`;
+}
+
 export function snapToGrid<T extends Position>(position: T, gridSize: number): T {
   if (gridSize > 0) {
     return {

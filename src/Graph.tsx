@@ -43,7 +43,7 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
 
   renderNode: (node: N) => React.ReactNode;
   renderEdge: (edge: E, source: N, target: N) => React.ReactNode;
-  renderIncompleteEdge?: (source: N, target: Position) => React.ReactNode;
+  renderIncompleteEdge?: (source: N, position: Position, target: N | undefined) => React.ReactNode;
 
   // TODO: All of these.
   pan?: Partial<Pan> | boolean;
@@ -101,6 +101,7 @@ interface PanState {
 
 interface EdgeCreateState<N extends Node> {
   source: N;
+  target?: N;
   start: ScreenPosition;
   last: ScreenPosition;
 }
@@ -275,6 +276,28 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     },
     [onCreateEdgeEnd, incompleteEdge, nodesById],
   );
+
+  const onMouseEnterNode = React.useCallback(
+    (e: React.MouseEvent<SVGGElement>) => {
+      const { id } = e.currentTarget.dataset;
+      assertNonNull(id);
+      setIncompleteEdge((edge) => {
+        if (edge) {
+          return {
+            ...edge,
+            target: nodesById[id],
+          };
+        } else {
+          return undefined;
+        }
+      });
+    },
+    [nodesById],
+  );
+
+  const onMouseLeaveNode = React.useCallback(() => {
+    setIncompleteEdge((edge) => (edge ? { ...edge, target: undefined } : undefined));
+  }, []);
 
   const onClickNodeWrapper = React.useCallback(
     (e: React.MouseEvent<SVGGElement>) => {
@@ -452,7 +475,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
             return;
           }
 
-          // TODO: Can this use translation or something less heavyweight like the node renderer?
+          // TODO: Can this use translation or something less heavyweight?
           if (dragState) {
             if (dragState.id === source.id) {
               source = {
@@ -478,14 +501,18 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         })}
         {incompleteEdge && props.renderIncompleteEdge && (
           <g className="panzoom-exclude">
-            {props.renderIncompleteEdge(incompleteEdge.source, {
-              x:
-                (incompleteEdge.last.screenX - incompleteEdge.start.screenX) / scale +
-                incompleteEdge.source.x,
-              y:
-                (incompleteEdge.last.screenY - incompleteEdge.start.screenY) / scale +
-                incompleteEdge.source.y,
-            })}
+            {props.renderIncompleteEdge(
+              incompleteEdge.source,
+              {
+                x:
+                  (incompleteEdge.last.screenX - incompleteEdge.start.screenX) / scale +
+                  incompleteEdge.source.x,
+                y:
+                  (incompleteEdge.last.screenY - incompleteEdge.start.screenY) / scale +
+                  incompleteEdge.source.y,
+              },
+              incompleteEdge.target,
+            )}
           </g>
         )}
         {props.nodes.map((n) => {
@@ -503,6 +530,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
               data-id={n.id}
               onMouseDown={onMouseDownNode}
               onMouseUp={onMouseUpNode}
+              onMouseEnter={onMouseEnterNode}
+              onMouseLeave={onMouseLeaveNode}
               onClick={onClickNodeWrapper}
               className="panzoom-exclude"
             >
