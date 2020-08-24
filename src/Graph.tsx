@@ -398,15 +398,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         const {
           detail: { x, y },
         } = poorlyTypedEvent as PanzoomEvent;
-        // TODO: This is a cute trick to have an infinite background. We should also resize the
-        // background to make sure it's always larger than the SVG's bounding box by a reasonable.
         // TODO: Pull this out into an InfiniteTiled component or something.
-        // TODO: -250 was chosen arbitrarily to fit the background; it should probably be a function
-        // of the size of the SVG.
         if (backgroundRef.current) {
-          backgroundRef.current.style["transform"] = `translate(${-x - 250 + (x % gridSpacing)}px,${
-            -y - 250 + (y % gridSpacing)
-          }px)`;
+          backgroundRef.current.style["transform"] = `translate(${
+            -x - gridSpacing / 2 + (x % gridSpacing)
+          }px,${-y - gridSpacing / 2 + (y % gridSpacing)}px)`;
         }
       });
     } else {
@@ -442,8 +438,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           ref={backgroundRef}
           className="panzoom-exclude"
           fill={props.grid === false ? "transparent" : "url(#grid)"}
-          width="1000"
-          height="1000"
+          width="100%"
+          height="100%"
           onMouseDown={onMouseDownBackground}
           onClick={onClickBackgroundWrapper}
         />

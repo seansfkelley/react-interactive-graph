@@ -1,15 +1,13 @@
 # TODO
 
-- background should fill the whole containing element
 - improve default/demo appearance
   - include hover states for interactive things
 - arrow heads for edges
 - allow implementing dragging multiple selected nodes at once
-- better hotkeys (ctrl/shift split is annoying)
 - maybe wrap core graph component with some sane defaults like for selection and deletion and node/edge creation?
 - edge hover: how to only mark hovering when near the actual line?
 - how to change the appearance of nodes that are being hovered for edge creation?
-- snap-to-grid
+- improve snap-to-grid
 - box select
 - implement pan/zoom controlled props and constraints
   - maybe "constraints" are really "settings"?
