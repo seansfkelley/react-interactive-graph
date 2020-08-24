@@ -114,14 +114,12 @@ export function Demo() {
   );
 
   const renderEdge = React.useCallback(
-    (edge: Edge, s: Node, t: Node) => {
-      const source = snap(s);
-      const target = snap(t);
+    (edge: Edge, source: Node, target: Node) => {
       const isSelected = edgeSelection.has(edge.id);
       const d =
         source.id === target.id
-          ? selfEdgePathD(source, 150)
-          : pathD(source, target, pathType, pathDirection);
+          ? selfEdgePathD(snap(source), 150)
+          : pathD(snap(source), snap(target), pathType, pathDirection);
       return (
         <>
           {/* Superfat edge to make the click target larger. */}
@@ -152,8 +150,8 @@ export function Demo() {
         <path
           d={
             source.id === target?.id
-              ? selfEdgePathD(source, 150)
-              : pathD(source, target ?? position)
+              ? selfEdgePathD(snap(source), 150)
+              : pathD(snap(source), snap(target ?? position))
           }
           stroke="black"
           strokeWidth={2}
@@ -163,7 +161,7 @@ export function Demo() {
         />
       );
     },
-    [],
+    [snap],
   );
 
   return (
