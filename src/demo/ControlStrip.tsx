@@ -1,6 +1,6 @@
 import * as React from "react";
 import { SketchPicker } from "react-color";
-import type { Grid } from "../";
+import { Grid, PathType, PathDirection } from "../";
 import { objectValues } from "../lang";
 import { ExampleType } from "./exampleData";
 
@@ -9,6 +9,10 @@ export interface Props {
   onChangeGrid: (g: Required<Grid>) => void;
   gridEnabled: boolean;
   onChangeGridEnabled: (enabled: boolean) => void;
+  pathType: PathType;
+  onChangePathType: (type: PathType) => void;
+  preferredPathDirection: PathDirection;
+  onChangePreferredPathDirection: (direction: PathDirection) => void;
   onChangeExampleType: (type: ExampleType) => void;
 }
 
@@ -74,6 +78,26 @@ export function ControlStrip(props: Props) {
           />
           dot color
         </button>
+        <select
+          onChange={(e) => {
+            props.onChangePathType(e.currentTarget.value as PathType);
+          }}
+          value={props.pathType}
+        >
+          {objectValues(PathType).map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </select>
+        <select
+          onChange={(e) => {
+            props.onChangePreferredPathDirection(e.currentTarget.value as PathDirection);
+          }}
+          value={props.preferredPathDirection}
+        >
+          {objectValues(PathDirection).map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </select>
         <select
           onChange={(e) => {
             props.onChangeExampleType(e.currentTarget.value as ExampleType);

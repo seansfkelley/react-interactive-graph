@@ -11,6 +11,8 @@ import {
   DEFAULT_GRID_DOT_SIZE,
   DEFAULT_GRID_SPACING,
   DEFAULT_GRID_FILL,
+  PathType,
+  PathDirection,
 } from "../";
 
 import { useSelectionSet } from "./hooks";
@@ -36,6 +38,8 @@ export function Demo() {
     spacing: DEFAULT_GRID_SPACING,
     fill: DEFAULT_GRID_FILL,
   });
+  const [pathType, setPathType] = React.useState(PathType.STRAIGHT);
+  const [pathDirection, setPathDirection] = React.useState(PathDirection.AUTO);
 
   const nodeSelection = useSelectionSet();
   const edgeSelection = useSelectionSet();
@@ -90,27 +94,29 @@ export function Demo() {
   const renderEdge = React.useCallback(
     (edge: Edge, source: Node, target: Node) => {
       const isSelected = edgeSelection.has(edge.id);
-      const d = pathD(source, target);
+      const d = pathD(source, target, pathType, pathDirection);
       return (
         <>
           {/* Superfat edge to make the click target larger. */}
-          <path d={d} stroke="transparent" strokeWidth={40} />
+          <path d={d} stroke="transparent" strokeWidth={40} fill="transparent" />
           <path
             d={d}
             stroke={isSelected ? SELECTION_COLOR : "transparent"}
             strokeWidth={3}
+            fill="transparent"
             filter={isSelected ? "url(#drop-shadow-edge-highlight)" : undefined}
           />
           <path
             d={d}
             stroke="black"
             strokeWidth={isSelected ? 1 : 2}
+            fill="transparent"
             filter={isSelected ? undefined : "url(#drop-shadow-edge)"}
           />
         </>
       );
     },
-    [edgeSelection],
+    [edgeSelection, pathType, pathDirection],
   );
 
   const renderIncompleteEdge = React.useCallback((source: Node, target: Position) => {
@@ -132,6 +138,10 @@ export function Demo() {
         onChangeGridEnabled={setGridEnabled}
         grid={grid}
         onChangeGrid={setGrid}
+        pathType={pathType}
+        onChangePathType={setPathType}
+        preferredPathDirection={pathDirection}
+        onChangePreferredPathDirection={setPathDirection}
         onChangeExampleType={(t) => {
           const { nodes, edges } = GENERATE[t]();
           setNodes(nodes);

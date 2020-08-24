@@ -1,5 +1,6 @@
 # TODO
 
+- background should fill the whole containing element
 - improve default/demo appearance
   - include hover states for interactive things
 - arrow heads for edges
