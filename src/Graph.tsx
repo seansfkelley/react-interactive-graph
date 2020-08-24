@@ -73,10 +73,6 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   clickFudgeFactor?: number;
 }
 
-export function pathD(source: Position, target: Position) {
-  return `M${source.x},${source.y}L${target.x},${target.y}`;
-}
-
 export const DEFAULT_MIN_ZOOM = 0.25;
 export const DEFAULT_MAX_ZOOM = 2;
 export const DEFAULT_ZOOM_SPEED = 0.15;
