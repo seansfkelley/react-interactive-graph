@@ -30,8 +30,6 @@ export function Demo() {
     setEdges(edges);
   }, []);
 
-  const [isCreating, setIsCreating] = React.useState(false);
-
   const [gridEnabled, setGridEnabled] = React.useState(true);
   const [grid, setGrid] = React.useState<Required<Grid>>({
     dotSize: DEFAULT_GRID_DOT_SIZE,
@@ -41,13 +39,6 @@ export function Demo() {
 
   const nodeSelection = useSelectionSet();
   const edgeSelection = useSelectionSet();
-
-  React.useEffect(() => {
-    if (isCreating) {
-      nodeSelection.clear();
-      edgeSelection.clear();
-    }
-  }, [isCreating, nodeSelection, edgeSelection]);
 
   const onCreateEdgeEnd = React.useCallback((_e: React.MouseEvent, source: Node, target: Node) => {
     setEdges((edges) => [...edges, { id: nextId(), sourceId: source.id, targetId: target.id }]);
@@ -137,8 +128,6 @@ export function Demo() {
   return (
     <>
       <ControlStrip
-        isCreating={isCreating}
-        onChangeIsCreating={setIsCreating}
         gridEnabled={gridEnabled}
         onChangeGridEnabled={setGridEnabled}
         grid={grid}
@@ -150,7 +139,7 @@ export function Demo() {
         }}
       />
       <Graph
-        style={{ flex: 1, cursor: isCreating ? "pointer" : undefined }}
+        style={{ flex: 1 }}
         grid={gridEnabled && grid}
         nodes={nodes}
         edges={edges}
@@ -176,22 +165,16 @@ export function Demo() {
           }
         }}
         onClickBackground={(event, { x, y }) => {
-          if (isCreating && !event.shiftKey) {
+          if (event.shiftKey) {
             setNodes((nodes) => [...nodes, { id: nextId(), x, y }]);
           } else {
             nodeSelection.clear();
             edgeSelection.clear();
           }
         }}
-        shouldStartPan={(event) => {
-          return !isCreating || event.shiftKey;
-        }}
-        shouldStartNodeDrag={(event) => {
-          return !isCreating || event.shiftKey;
-        }}
-        shouldStartCreateEdge={(event) => {
-          return isCreating && !event.shiftKey;
-        }}
+        shouldStartPan={(event) => !event.shiftKey}
+        shouldStartNodeDrag={(event) => !event.shiftKey}
+        shouldStartCreateEdge={(event) => event.shiftKey}
         onNodeDragEnd={(_, n, position) => {
           setNodes(nodes.map((node) => (node.id === n.id ? { ...node, ...position } : node)));
         }}

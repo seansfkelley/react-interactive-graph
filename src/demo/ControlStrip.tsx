@@ -10,8 +10,6 @@ export interface Props {
   gridEnabled: boolean;
   onChangeGridEnabled: (enabled: boolean) => void;
   onChangeExampleType: (type: ExampleType) => void;
-  isCreating: boolean;
-  onChangeIsCreating: (isCreating: boolean) => void;
 }
 
 const popover = {
@@ -32,14 +30,6 @@ export function ControlStrip(props: Props) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center" }}>
-        create mode
-        <input
-          type="checkbox"
-          checked={props.isCreating}
-          onChange={() => {
-            props.onChangeIsCreating(!props.isCreating);
-          }}
-        />
         grid enabled
         <input
           type="checkbox"
