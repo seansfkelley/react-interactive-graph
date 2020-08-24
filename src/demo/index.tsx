@@ -49,10 +49,6 @@ export function Demo() {
     }
   }, [isCreating, nodeSelection, edgeSelection]);
 
-  const shouldStartCreateEdge = React.useCallback(() => {
-    return isCreating;
-  }, [isCreating]);
-
   const onCreateEdgeEnd = React.useCallback((_e: React.MouseEvent, source: Node, target: Node) => {
     setEdges((edges) => [...edges, { id: nextId(), sourceId: source.id, targetId: target.id }]);
   }, []);
@@ -162,7 +158,7 @@ export function Demo() {
         renderEdge={renderEdge}
         renderIncompleteEdge={renderIncompleteEdge}
         onClickNode={(event, n) => {
-          if (event.metaKey) {
+          if (event.metaKey || event.shiftKey) {
             nodeSelection.toggle(n.id);
           } else {
             edgeSelection.clear();
@@ -171,7 +167,7 @@ export function Demo() {
           }
         }}
         onClickEdge={(event, e) => {
-          if (event.metaKey) {
+          if (event.metaKey || event.shiftKey) {
             edgeSelection.toggle(e.id);
           } else {
             nodeSelection.clear();
@@ -179,21 +175,26 @@ export function Demo() {
             edgeSelection.add(e.id);
           }
         }}
-        onClickBackground={(_event, { x, y }) => {
-          if (isCreating) {
+        onClickBackground={(event, { x, y }) => {
+          if (isCreating && !event.shiftKey) {
             setNodes((nodes) => [...nodes, { id: nextId(), x, y }]);
           } else {
             nodeSelection.clear();
             edgeSelection.clear();
           }
         }}
+        shouldStartPan={(event) => {
+          return !isCreating || event.shiftKey;
+        }}
         shouldStartNodeDrag={(event) => {
           return !isCreating || event.shiftKey;
+        }}
+        shouldStartCreateEdge={(event) => {
+          return isCreating && !event.shiftKey;
         }}
         onNodeDragEnd={(_, n, position) => {
           setNodes(nodes.map((node) => (node.id === n.id ? { ...node, ...position } : node)));
         }}
-        shouldStartCreateEdge={shouldStartCreateEdge}
         onCreateEdgeEnd={onCreateEdgeEnd}
       >
         <defs>
