@@ -493,12 +493,14 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           </g>
         )}
         {props.nodes.map((n) => {
-          const transform =
+          const transformedNode =
             dragState?.id === n.id
-              ? `translate(${(dragState.last.screenX - dragState.start.screenX) / scale}, ${
-                  (dragState.last.screenY - dragState.start.screenY) / scale
-                })`
-              : undefined;
+              ? {
+                  ...n,
+                  x: (dragState.last.screenX - dragState.start.screenX) / scale + n.x,
+                  y: (dragState.last.screenY - dragState.start.screenY) / scale + n.y,
+                }
+              : n;
           return (
             <g
               key={n.id}
@@ -506,10 +508,9 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
               onMouseDown={onMouseDownNode}
               onMouseUp={onMouseUpNode}
               onClick={onClickNodeWrapper}
-              transform={transform}
               className="panzoom-exclude"
             >
-              {props.renderNode(n)}
+              {props.renderNode(transformedNode)}
             </g>
           );
         })}

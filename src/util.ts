@@ -39,10 +39,21 @@ export function pathD(
   }
 }
 
+export function snapToGrid<T extends Position>(position: T, gridSize: number): T {
+  if (gridSize > 0) {
+    return {
+      ...position,
+      x: Math.round(position.x / gridSize) * gridSize,
+      y: Math.round(position.y / gridSize) * gridSize,
+    };
+  } else {
+    return position;
+  }
+}
+
 function _getAutoDirection(source: Position, target: Position) {
   const deltaX = Math.abs(target.x - source.x);
   const deltaY = Math.abs(target.y - source.y);
-  // Attempt to draw the longest, straightest line.
   return deltaX > deltaY ? PathDirection.HORIZONTAL_FIRST : PathDirection.VERTICAL_FIRST;
 }
 

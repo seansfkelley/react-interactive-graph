@@ -19,6 +19,7 @@ import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
 import { ControlStrip } from "./ControlStrip";
 import { ExampleType, GENERATE, nextId } from "./exampleData";
+import { snapToGrid } from "../util";
 
 const SELECTION_COLOR = "#5558fc";
 
@@ -40,9 +41,21 @@ export function Demo() {
   });
   const [pathType, setPathType] = React.useState(PathType.STRAIGHT);
   const [pathDirection, setPathDirection] = React.useState(PathDirection.AUTO);
+  const [gridSnapSize, setGridSnapSize] = React.useState(0);
 
   const nodeSelection = useSelectionSet();
   const edgeSelection = useSelectionSet();
+
+  const snap = React.useCallback(
+    <T extends Position>(position: T): T => {
+      if (gridSnapSize !== 0) {
+        return snapToGrid(position, gridSnapSize);
+      } else {
+        return position;
+      }
+    },
+    [gridSnapSize],
+  );
 
   const onCreateEdgeEnd = React.useCallback((_e: React.MouseEvent, source: Node, target: Node) => {
     setEdges((edges) => [...edges, { id: nextId(), sourceId: source.id, targetId: target.id }]);
@@ -69,7 +82,8 @@ export function Demo() {
   useDocumentEvent("keyup", onDocumentKeyUp);
 
   const renderNode = React.useCallback(
-    (node: Node) => {
+    (n: Node) => {
+      const node = snap(n);
       const isSelected = nodeSelection.has(node.id);
       return (
         <>
@@ -88,11 +102,13 @@ export function Demo() {
         </>
       );
     },
-    [nodeSelection],
+    [nodeSelection, snap],
   );
 
   const renderEdge = React.useCallback(
-    (edge: Edge, source: Node, target: Node) => {
+    (edge: Edge, s: Node, t: Node) => {
+      const source = snap(s);
+      const target = snap(t);
       const isSelected = edgeSelection.has(edge.id);
       const d = pathD(source, target, pathType, pathDirection);
       return (
@@ -116,7 +132,7 @@ export function Demo() {
         </>
       );
     },
-    [edgeSelection, pathType, pathDirection],
+    [edgeSelection, pathType, pathDirection, snap],
   );
 
   const renderIncompleteEdge = React.useCallback((source: Node, target: Position) => {
@@ -138,6 +154,8 @@ export function Demo() {
         onChangeGridEnabled={setGridEnabled}
         grid={grid}
         onChangeGrid={setGrid}
+        gridSnapSize={gridSnapSize}
+        onChangeGridSnapSize={setGridSnapSize}
         pathType={pathType}
         onChangePathType={setPathType}
         preferredPathDirection={pathDirection}

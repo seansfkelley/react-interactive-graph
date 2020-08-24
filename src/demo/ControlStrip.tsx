@@ -9,6 +9,8 @@ export interface Props {
   onChangeGrid: (g: Required<Grid>) => void;
   gridEnabled: boolean;
   onChangeGridEnabled: (enabled: boolean) => void;
+  gridSnapSize: number;
+  onChangeGridSnapSize: (size: number) => void;
   pathType: PathType;
   onChangePathType: (type: PathType) => void;
   preferredPathDirection: PathDirection;
@@ -45,6 +47,9 @@ export function ControlStrip(props: Props) {
         dot size
         <input
           type="number"
+          min={1}
+          step={0.5}
+          max={5}
           value={props.grid.dotSize}
           onChange={(e) => {
             props.onChangeGrid({ ...props.grid, dotSize: +e.currentTarget.value });
@@ -54,6 +59,9 @@ export function ControlStrip(props: Props) {
         dot spacing
         <input
           type="number"
+          min={10}
+          step={5}
+          max={200}
           value={props.grid.spacing}
           onChange={(e) => {
             props.onChangeGrid({ ...props.grid, spacing: +e.currentTarget.value });
@@ -78,6 +86,18 @@ export function ControlStrip(props: Props) {
           />
           dot color
         </button>
+        snap to grid
+        <input
+          type="number"
+          step={10}
+          min={0}
+          max={200}
+          value={props.gridSnapSize}
+          onChange={(e) => {
+            props.onChangeGridSnapSize(+e.currentTarget.value);
+          }}
+          disabled={!props.gridEnabled}
+        />
         <select
           onChange={(e) => {
             props.onChangePathType(e.currentTarget.value as PathType);
