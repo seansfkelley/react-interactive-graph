@@ -62,7 +62,7 @@ export function useSelectionSet(): SelectionSet {
   const map = React.useCallback(
     <T extends unknown>(callback: (id: string) => T) => {
       const array: T[] = [];
-      for (const item in set) {
+      for (const item of set) {
         array.push(callback(item));
       }
       return array;
@@ -72,7 +72,7 @@ export function useSelectionSet(): SelectionSet {
 
   const forEach = React.useCallback(
     (callback: (id: string) => void) => {
-      for (const item in set) {
+      for (const item of set) {
         callback(item);
       }
     },
