@@ -1,7 +1,6 @@
 # TODO
 
 - bug: background doesn't grow in size when you zoom out and looks ridiculous
-- arrow heads for edges
 - support multiple edges and self-edges
 - straight-edged self-edges
 - improve default/demo appearance
@@ -18,7 +17,7 @@
   - maybe "constraints" are really "settings"?
 - pan/zoom controls
 - CSS classes all over the place to allow for customization
-- perf?
+- perf? (better way to do drop shadows?)
 - DOM rendering?
 - canvas rendering?
 - audit event handling to make sure it works as intended (for instance, node drag/background click overlap in using document-mouse-up)

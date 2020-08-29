@@ -1,6 +1,7 @@
 import * as React from "react";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import * as ReactDOM from "react-dom";
+import { shape, intersect } from "svg-intersections";
 import {
   Graph,
   Node,
@@ -23,6 +24,8 @@ import { ExampleType, GENERATE, nextId } from "./exampleData";
 import { snapToGrid } from "../util";
 
 const SELECTION_COLOR = "#5558fc";
+const ARROW_SIZE = 10;
+const NODE_RADIUS = 40;
 
 export function Demo() {
   const [nodes, setNodes] = React.useState<Node[]>([]);
@@ -91,7 +94,7 @@ export function Demo() {
           <circle
             cx={node.x}
             cy={node.y}
-            r="40"
+            r={NODE_RADIUS}
             strokeWidth={isSelected ? 2 : 1}
             fill="white"
             stroke={isSelected ? SELECTION_COLOR : "black"}
@@ -116,10 +119,27 @@ export function Demo() {
   const renderEdge = React.useCallback(
     (edge: Edge, source: Node, target: Node) => {
       const isSelected = edgeSelection.has(edge.id);
+
+      const snappedSource = snap(source);
+      const snappedTarget = snap(target);
+
+      const { points: targetIntersections } = intersect(
+        shape("circle", { cx: snappedTarget.x, cy: snappedTarget.y, r: NODE_RADIUS }),
+        shape("line", {
+          x1: snappedSource.x,
+          y1: snappedSource.y,
+          x2: snappedTarget.x,
+          y2: snappedTarget.y,
+        }),
+      );
+
+      const targetPoint = targetIntersections.length > 0 ? targetIntersections[0] : snappedTarget;
+
       const d =
         source.id === target.id
-          ? selfEdgePathD(snap(source), 150)
-          : pathD(snap(source), snap(target), pathType, pathDirection);
+          ? selfEdgePathD(snappedSource, 150)
+          : pathD(snappedSource, targetPoint, pathType, pathDirection);
+
       return (
         <>
           {/* Superfat edge to make the click target larger. */}
@@ -137,6 +157,7 @@ export function Demo() {
             strokeWidth={isSelected ? 1 : 2}
             fill="transparent"
             filter={isSelected ? undefined : "url(#drop-shadow-edge)"}
+            style={{ markerEnd: "url(#arrow)" }}
           />
         </>
       );
@@ -239,6 +260,20 @@ export function Demo() {
           <filter id="drop-shadow-edge-highlight">
             <feDropShadow dx="1" dy="1" stdDeviation="2" floodColor={SELECTION_COLOR} />
           </filter>
+          <marker
+            id="arrow"
+            viewBox={`0 -${ARROW_SIZE / 2} ${ARROW_SIZE} ${ARROW_SIZE}`}
+            refX={ARROW_SIZE}
+            markerWidth={ARROW_SIZE}
+            markerHeight={ARROW_SIZE}
+            orient="auto"
+          >
+            <path
+              d={`M0,-${ARROW_SIZE / 2}L${ARROW_SIZE},0L0,${ARROW_SIZE / 2}`}
+              width={ARROW_SIZE}
+              height={ARROW_SIZE}
+            />
+          </marker>
         </defs>
       </Graph>
     </>

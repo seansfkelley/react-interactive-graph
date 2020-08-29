@@ -22,6 +22,7 @@
     "@types/react": "^16.9.46",
     "@types/react-color": "^3.0.4",
     "@types/react-dom": "^16.9.8",
+    "@types/svg-intersections": "^0.4.0",
     "@typescript-eslint/eslint-plugin": "^3.9.1",
     "@typescript-eslint/parser": "^3.9.1",
     "eslint": "^7.7.0",
@@ -37,6 +38,7 @@
     "typescript": "^4.0.2"
   },
   "dependencies": {
-    "@panzoom/panzoom": "^4.3.1"
+    "@panzoom/panzoom": "^4.3.1",
+    "svg-intersections": "^0.4.0"
   }
 }

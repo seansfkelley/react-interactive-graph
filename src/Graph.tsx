@@ -484,8 +484,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           ref={backgroundRef}
           className="panzoom-exclude"
           fill={props.grid === false ? "transparent" : "url(#grid)"}
-          width="100%"
-          height="100%"
+          // TODO: This height thing works, but it's also overkill, cause when you zoom it it gets
+          // HUGE. Also, there's visual bugs cause the translating for the infinite view happens
+          // in a ref, above, which isn't triggered on zoom, only on pan.
+          width={`${props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM * 100 * 2}%`}
+          height={`${props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM * 100 * 2}%`}
           onMouseDown={onMouseDownBackground}
           onClick={onClickBackgroundWrapper}
         />
