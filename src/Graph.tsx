@@ -475,7 +475,6 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         step: props.zoomConstraints?.speed ?? DEFAULT_ZOOM_SPEED,
       });
 
-      // TODO: How do we remove this listener when this ref is unmounted?
       // TODO: Slight bug here: if the background is remounted but no pan is performed afterwards,
       // it'll be misaligned. We need to do this on background mount too.
       e.addEventListener("panzoomchange", (poorlyTypedEvent: unknown) => {
@@ -535,9 +534,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           ref={backgroundRef}
           className="panzoom-exclude"
           fill={props.grid === false ? "transparent" : "url(#grid)"}
-          // TODO: This height thing works, but it's also overkill, cause when you zoom it it gets
-          // HUGE. Also, there's visual bugs cause the translating for the infinite view happens
-          // in a ref, above, which isn't triggered on zoom, only on pan.
+          // TODO: This height thing works, but it's also overkill, cause when you zoom it it gets HUGE.
           width={`${props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM * 100 * 2}%`}
           height={`${props.zoomConstraints?.max ?? DEFAULT_MAX_ZOOM * 100 * 2}%`}
           onMouseDown={onMouseDownBackground}

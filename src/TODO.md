@@ -2,6 +2,8 @@
 
 - support multiple edges and self-edges
 - dragging node should be on top
+- user should be able to modifier-click on ndoes/edges to force-pan
+- should view pan if user mouses down on a node but no drag modifier is held?
 - support arrows on self-edges
 - straight-edged self-edges
 - improve default/demo appearance
@@ -9,7 +11,9 @@
   - show pan/zoom values and allow settings/disabling them
   - clean up visuals
 - allow implementing dragging multiple selected nodes at once
-- maybe wrap core graph component with some sane defaults like for selection and deletion and node/edge creation?
+- code arch:
+  - basic Graph component that does viewporting and event handling
+  - more complex DefaultGraph component (or something) that supports selection/deletion/etc.
 - edge hover: how to only mark hovering when near the actual line?
 - how to change the appearance of nodes that are being hovered for edge creation?
 - improve snap-to-grid
