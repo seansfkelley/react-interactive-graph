@@ -172,7 +172,7 @@ export function Demo() {
           d={
             source.id === target?.id
               ? selfEdgePathD(snap(source), 150)
-              : pathD(snap(source), snap(target ?? position))
+              : pathD(snap(source), target ? snap(target) : position)
           }
           stroke="black"
           strokeWidth={2}
