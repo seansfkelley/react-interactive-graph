@@ -98,7 +98,7 @@ export function Demo() {
             strokeWidth={isSelected ? 2 : 1}
             fill="white"
             stroke={isSelected ? SELECTION_COLOR : "black"}
-            filter={isSelected ? "url(#drop-shadow-node-highlight)" : "url(#drop-shadow-node)"}
+            // filter={isSelected ? "url(#drop-shadow-node-highlight)" : "url(#drop-shadow-node)"}
           />
           <text
             x={node.x}
@@ -149,14 +149,14 @@ export function Demo() {
             stroke={isSelected ? SELECTION_COLOR : "transparent"}
             strokeWidth={3}
             fill="transparent"
-            filter={isSelected ? "url(#drop-shadow-edge-highlight)" : undefined}
+            // filter={isSelected ? "url(#drop-shadow-edge-highlight)" : undefined}
           />
           <path
             d={d}
             stroke="black"
             strokeWidth={isSelected ? 1 : 2}
             fill="transparent"
-            filter={isSelected ? undefined : "url(#drop-shadow-edge)"}
+            // filter={isSelected ? undefined : "url(#drop-shadow-edge)"}
             style={{ markerEnd: "url(#arrow)" }}
           />
         </>

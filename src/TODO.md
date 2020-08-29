@@ -1,6 +1,7 @@
 # TODO
 
 - support multiple edges and self-edges
+- dragging node should be on top
 - support arrows on self-edges
 - straight-edged self-edges
 - improve default/demo appearance

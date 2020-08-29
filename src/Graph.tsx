@@ -12,37 +12,36 @@ interface PanzoomEvent {
   };
 }
 
-interface Bounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
+class Bounds {
+  constructor(
+    private minX: number,
+    private maxX: number,
+    private minY: number,
+    private maxY: number,
+  ) {}
 
-const Bounds = {
-  containsNode: (b: Bounds, n: Node) => {
+  containsNode(n: Node) {
     const { x, y, width, height } = n;
     const halfWidth = width / 2;
     const halfHeight = height / 2;
-    return (
-      x + halfWidth > b.minX &&
-      x - halfWidth < b.maxX &&
-      y + halfHeight > b.minY &&
-      y - halfHeight < b.maxY
+    return this._overlaps(x - halfWidth, x + halfWidth, y - halfHeight, y + halfHeight);
+  }
+
+  containsEdge(n1: Node, n2: Node) {
+    const { x: n1X, y: n1Y } = n1;
+    const { x: n2X, y: n2Y } = n2;
+    return this._overlaps(
+      Math.min(n1X, n2X),
+      Math.max(n1X, n2X),
+      Math.min(n1Y, n2Y),
+      Math.max(n1Y, n2Y),
     );
-  },
-  containsEdge: (b: Bounds, source: Node, target: Node) => {
-    const { x: sourceX, y: sourceY } = source;
-    const { x: targetX, y: targetY } = target;
-    return Bounds.containsNode(b, {
-      id: "",
-      x: (sourceX + targetX) / 2,
-      y: (sourceY + targetY) / 2,
-      width: Math.abs(sourceX - targetX),
-      height: Math.abs(sourceY - targetY),
-    });
-  },
-};
+  }
+
+  private _overlaps(minX: number, maxX: number, minY: number, maxY: number) {
+    return maxX > this.minX && minX < this.maxX && maxY > this.minY && minY < this.maxY;
+  }
+}
 
 export interface Grid {
   dotSize?: number;
@@ -152,12 +151,9 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const [incompleteEdge, setIncompleteEdge] = React.useState<EdgeCreateState<N> | undefined>();
 
-  const [worldSpaceBounds, setWorldSpaceBounds] = useThrottledState<Bounds>({
-    minX: -Infinity,
-    maxX: Infinity,
-    minY: -Infinity,
-    maxY: Infinity,
-  });
+  const [worldSpaceBounds, setWorldSpaceBounds] = useThrottledState<Bounds>(
+    new Bounds(-Infinity, Infinity, -Infinity, Infinity),
+  );
 
   // This must be null, not undefined, to appease the typechecker/React.
   const rootRef = React.useRef<SVGSVGElement | null>(null);
@@ -503,7 +499,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
             clientX: rect.right,
             clientY: rect.bottom,
           });
-          setWorldSpaceBounds({ minX, maxX, minY, maxY });
+          setWorldSpaceBounds(new Bounds(minX, maxX, minY, maxY));
         }
       });
     } else {
@@ -574,15 +570,15 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
             }
           }
 
-          if (!Bounds.containsEdge(worldSpaceBounds, source, target)) {
+          if (worldSpaceBounds.containsEdge(source, target)) {
+            return (
+              <g key={e.id} data-id={e.id} className="panzoom-exclude" onClick={onClickEdgeWrapper}>
+                {props.renderEdge(e, source, target)}
+              </g>
+            );
+          } else {
             return null;
           }
-
-          return (
-            <g key={e.id} data-id={e.id} className="panzoom-exclude" onClick={onClickEdgeWrapper}>
-              {props.renderEdge(e, source, target)}
-            </g>
-          );
         })}
         {incompleteEdge && props.renderIncompleteEdge && (
           <g className="panzoom-exclude">
@@ -610,24 +606,24 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
                 }
               : n;
 
-          if (!Bounds.containsNode(worldSpaceBounds, n)) {
+          if (worldSpaceBounds.containsNode(n)) {
+            return (
+              <g
+                key={n.id}
+                data-id={n.id}
+                onMouseDown={onMouseDownNode}
+                onMouseUp={onMouseUpNode}
+                onMouseEnter={onMouseEnterNode}
+                onMouseLeave={onMouseLeaveNode}
+                onClick={onClickNodeWrapper}
+                className="panzoom-exclude"
+              >
+                {props.renderNode(transformedNode)}
+              </g>
+            );
+          } else {
             return null;
           }
-
-          return (
-            <g
-              key={n.id}
-              data-id={n.id}
-              onMouseDown={onMouseDownNode}
-              onMouseUp={onMouseUpNode}
-              onMouseEnter={onMouseEnterNode}
-              onMouseLeave={onMouseLeaveNode}
-              onClick={onClickNodeWrapper}
-              className="panzoom-exclude"
-            >
-              {props.renderNode(transformedNode)}
-            </g>
-          );
         })}
         {props.children}
       </g>
