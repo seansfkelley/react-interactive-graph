@@ -2,7 +2,7 @@ import * as React from "react";
 import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 import type { Node, Edge, Position } from "./types";
 import { assertNonNull, assertEqual, keyBy } from "./lang";
-import { useDocumentEvent } from "./hooks";
+import { useDocumentEvent, useThrottledState } from "./hooks";
 
 interface PanzoomEvent {
   detail: {
@@ -11,6 +11,38 @@ interface PanzoomEvent {
     scale: number;
   };
 }
+
+interface Bounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+const Bounds = {
+  containsNode: (b: Bounds, n: Node) => {
+    const { x, y, width, height } = n;
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    return (
+      x + halfWidth > b.minX &&
+      x - halfWidth < b.maxX &&
+      y + halfHeight > b.minY &&
+      y - halfHeight < b.maxY
+    );
+  },
+  containsEdge: (b: Bounds, source: Node, target: Node) => {
+    const { x: sourceX, y: sourceY } = source;
+    const { x: targetX, y: targetY } = target;
+    return Bounds.containsNode(b, {
+      id: "",
+      x: (sourceX + targetX) / 2,
+      y: (sourceY + targetY) / 2,
+      width: Math.abs(sourceX - targetX),
+      height: Math.abs(sourceY - targetY),
+    });
+  },
+};
 
 export interface Grid {
   dotSize?: number;
@@ -120,6 +152,13 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
   const [incompleteEdge, setIncompleteEdge] = React.useState<EdgeCreateState<N> | undefined>();
 
+  const [worldSpaceBounds, setWorldSpaceBounds] = useThrottledState<Bounds>({
+    minX: -Infinity,
+    maxX: Infinity,
+    minY: -Infinity,
+    maxY: Infinity,
+  });
+
   // This must be null, not undefined, to appease the typechecker/React.
   const rootRef = React.useRef<SVGSVGElement | null>(null);
   const backgroundRef = React.useRef<SVGRectElement | null>(null);
@@ -193,21 +232,24 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     transform.pan(rect.width / 2, rect.height / 2, { force: true });
   }, []);
 
-  const toWorldSpacePosition = React.useCallback((e: React.MouseEvent | MouseEvent): Position => {
-    const { current: root } = rootRef;
-    assertNonNull(root);
-    const { current: transform } = transformRef;
-    assertNonNull(transform);
+  const toWorldSpacePosition = React.useCallback(
+    (e: { clientX: number; clientY: number }): Position => {
+      const { current: root } = rootRef;
+      assertNonNull(root);
+      const { current: transform } = transformRef;
+      assertNonNull(transform);
 
-    const scale = transform.getScale();
-    const { x, y } = transform.getPan();
-    const rect = root.getBoundingClientRect();
+      const scale = transform.getScale();
+      const { x, y } = transform.getPan();
+      const rect = root.getBoundingClientRect();
 
-    return {
-      x: (e.clientX - rect.left - root.clientLeft) / scale - x,
-      y: (e.clientY - rect.top - root.clientTop) / scale - y,
-    };
-  }, []);
+      return {
+        x: (e.clientX - rect.left - root.clientLeft) / scale - x,
+        y: (e.clientY - rect.top - root.clientTop) / scale - y,
+      };
+    },
+    [],
+  );
 
   const isWithinFudgeFactor = React.useCallback(
     (e: MouseEvent | React.MouseEvent, start: ScreenPosition) => {
@@ -440,7 +482,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       // TODO: How do we remove this listener when this ref is unmounted?
       // TODO: Slight bug here: if the background is remounted but no pan is performed afterwards,
       // it'll be misaligned. We need to do this on background mount too.
-      e.addEventListener("panzoompan", (poorlyTypedEvent: unknown) => {
+      e.addEventListener("panzoomchange", (poorlyTypedEvent: unknown) => {
         const {
           detail: { x, y },
         } = poorlyTypedEvent as PanzoomEvent;
@@ -449,6 +491,19 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           backgroundRef.current.style["transform"] = `translate(${
             -x - gridSpacing / 2 + (x % gridSpacing)
           }px,${-y - gridSpacing / 2 + (y % gridSpacing)}px)`;
+        }
+
+        if (rootRef.current) {
+          const rect = rootRef.current.getBoundingClientRect();
+          const { x: minX, y: minY } = toWorldSpacePosition({
+            clientX: rect.left,
+            clientY: rect.top,
+          });
+          const { x: maxX, y: maxY } = toWorldSpacePosition({
+            clientX: rect.right,
+            clientY: rect.bottom,
+          });
+          setWorldSpaceBounds({ minX, maxX, minY, maxY });
         }
       });
     } else {
@@ -519,6 +574,10 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
             }
           }
 
+          if (!Bounds.containsEdge(worldSpaceBounds, source, target)) {
+            return null;
+          }
+
           return (
             <g key={e.id} data-id={e.id} className="panzoom-exclude" onClick={onClickEdgeWrapper}>
               {props.renderEdge(e, source, target)}
@@ -550,6 +609,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
                   y: (dragState.last.screenY - dragState.start.screenY) / scale + n.y,
                 }
               : n;
+
+          if (!Bounds.containsNode(worldSpaceBounds, n)) {
+            return null;
+          }
+
           return (
             <g
               key={n.id}

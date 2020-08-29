@@ -1,4 +1,5 @@
-import * as React from "react";
+import { useEffect, useState, useMemo } from "react";
+import throttle from "lodash.throttle";
 
 // export function useAssertConstant<T>(value: T, message?: string) {
 //   const { current: initialValue } = React.useRef(value);
@@ -13,7 +14,7 @@ export function useDocumentEvent<K extends keyof DocumentEventMap>(
   type: K,
   listener: (this: Document, ev: DocumentEventMap[K]) => unknown,
 ) {
-  React.useEffect(() => {
+  useEffect(() => {
     const capturedType = type;
     const capturedListener = listener;
     document.addEventListener(capturedType, capturedListener);
@@ -21,4 +22,10 @@ export function useDocumentEvent<K extends keyof DocumentEventMap>(
       document.removeEventListener(capturedType, capturedListener);
     };
   }, [type, listener]);
+}
+
+export function useThrottledState<T>(initialValue?: T) {
+  const [value, setValue] = useState(initialValue);
+  const throttledSetValue = useMemo(() => throttle(setValue, 200), []);
+  return [value, throttledSetValue] as [T, typeof setValue];
 }

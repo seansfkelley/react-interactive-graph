@@ -12,6 +12,7 @@ export enum ExampleType {
   SIMPLE = "Simple",
   DAG = "DAG",
   RANDOM = "Random",
+  STRESS_TEST = "Stress Test",
 }
 
 export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] }> = {
@@ -74,6 +75,27 @@ export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] 
       }));
 
     const edges: Edge[] = Array(30)
+      .fill(undefined)
+      .map(() => ({
+        id: nextId(),
+        sourceId: nodes[Math.floor(Math.random() * nodes.length)].id,
+        targetId: nodes[Math.floor(Math.random() * nodes.length)].id,
+      }));
+
+    return { nodes, edges };
+  },
+  [ExampleType.STRESS_TEST]: () => {
+    const nodes: Node[] = Array(100)
+      .fill(undefined)
+      .map(() => ({
+        id: nextId(),
+        x: Math.random() * 1000 - 500,
+        y: Math.random() * 1000 - 500,
+        width: NODE_SIZE,
+        height: NODE_SIZE,
+      }));
+
+    const edges: Edge[] = Array(200)
       .fill(undefined)
       .map(() => ({
         id: nextId(),
