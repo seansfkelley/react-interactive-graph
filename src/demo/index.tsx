@@ -20,7 +20,7 @@ import {
 import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
 import { ControlStrip } from "./ControlStrip";
-import { ExampleType, GENERATE, nextId } from "./exampleData";
+import { ExampleType, GENERATE, nextId, NODE_SIZE } from "./exampleData";
 import { snapToGrid } from "../util";
 
 const SELECTION_COLOR = "#5558fc";
@@ -232,7 +232,10 @@ export function Demo() {
         }}
         onClickBackground={(event, { x, y }) => {
           if (event.altKey) {
-            setNodes((nodes) => [...nodes, { id: nextId(), x, y }]);
+            setNodes((nodes) => [
+              ...nodes,
+              { id: nextId(), x, y, width: NODE_SIZE, height: NODE_SIZE },
+            ]);
           } else {
             nodeSelection.clear();
             edgeSelection.clear();

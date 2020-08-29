@@ -5,6 +5,8 @@ export interface Position {
 
 export interface Node extends Position {
   id: string;
+  width: number;
+  height: number;
 }
 
 export interface Edge {

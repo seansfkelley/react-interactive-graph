@@ -2,6 +2,7 @@
 
 - bug: background doesn't grow in size when you zoom out and looks ridiculous
 - support multiple edges and self-edges
+- support arrows on self-edges
 - straight-edged self-edges
 - improve default/demo appearance
   - include hover states for interactive things
