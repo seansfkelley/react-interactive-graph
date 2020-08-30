@@ -51,6 +51,7 @@ export function Demo() {
   const [pathType, setPathType] = React.useState(PathType.STRAIGHT);
   const [pathDirection, setPathDirection] = React.useState(PathDirection.AUTO);
   const [gridSnapSize, setGridSnapSize] = React.useState(0);
+  const [dropShadows, setDropShadows] = React.useState(false);
 
   const nodeSelection = useSelectionSet();
   const edgeSelection = useSelectionSet();
@@ -73,9 +74,9 @@ export function Demo() {
       pathType,
       pathDirection,
       snap,
-      dropShadows: false,
+      dropShadows,
     }),
-    [nodeSelection, edgeSelection, pathType, pathDirection, snap],
+    [nodeSelection, edgeSelection, pathType, pathDirection, snap, dropShadows],
   );
 
   const onCreateEdgeEnd = React.useCallback(
@@ -119,6 +120,8 @@ export function Demo() {
         onChangePathType={setPathType}
         preferredPathDirection={pathDirection}
         onChangePreferredPathDirection={setPathDirection}
+        dropShadows={dropShadows}
+        onChangeDropShadows={setDropShadows}
         onChangeExampleType={(t) => {
           const { nodes, edges } = GENERATE[t]();
           setNodes(keyBy(nodes, "id"));

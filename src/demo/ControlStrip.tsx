@@ -15,6 +15,8 @@ export interface Props {
   onChangePathType: (type: PathType) => void;
   preferredPathDirection: PathDirection;
   onChangePreferredPathDirection: (direction: PathDirection) => void;
+  dropShadows: boolean;
+  onChangeDropShadows: (dropShadows: boolean) => void;
   onChangeExampleType: (type: ExampleType) => void;
 }
 
@@ -108,6 +110,14 @@ export function ControlStrip(props: Props) {
             <option key={t}>{t}</option>
           ))}
         </select>
+        drop shadows
+        <input
+          type="checkbox"
+          checked={props.dropShadows}
+          onChange={() => {
+            props.onChangeDropShadows(!props.dropShadows);
+          }}
+        />
         <select
           onChange={(e) => {
             props.onChangePreferredPathDirection(e.currentTarget.value as PathDirection);
