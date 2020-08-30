@@ -320,7 +320,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge, X extends ob
       if (incompleteEdge) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
-        if (!isWithinFudgeFactor(e, incompleteEdge.start) || incompleteEdge.didLeaveOriginalNode) {
+        if (incompleteEdge.didLeaveOriginalNode || !isWithinFudgeFactor(e, incompleteEdge.start)) {
           shouldSkipNextNodeClick.current = id;
           if (onCreateEdgeEnd) {
             onCreateEdgeEnd(e, {
@@ -337,28 +337,25 @@ export function Graph<N extends Node = Node, E extends Edge = Edge, X extends ob
     [onCreateEdgeEnd, incompleteEdge, nodes, isWithinFudgeFactor],
   );
 
-  const onMouseEnterNode = React.useCallback(
-    (e: React.MouseEvent<SVGGElement>) => {
-      const { id } = e.currentTarget.dataset;
-      assertNonNull(id);
-      setIncompleteEdge((edge) => {
-        if (edge) {
-          return {
-            ...edge,
-            target: nodes[id],
-          };
-        } else {
-          return undefined;
-        }
-      });
-    },
-    [nodes],
-  );
+  const onMouseEnterNode = React.useCallback((e: React.MouseEvent<SVGGElement>) => {
+    const { id } = e.currentTarget.dataset;
+    setIncompleteEdge((edge) => {
+      if (edge) {
+        assertNonNull(id);
+        return {
+          ...edge,
+          targetId: id,
+        };
+      } else {
+        return undefined;
+      }
+    });
+  }, []);
 
   const onMouseLeaveNode = React.useCallback(() => {
     setIncompleteEdge((edge) => {
       // Check to see if we need to actually shallowly mutate and rerender first...
-      if (edge && (edge?.targetId != null || edge?.didLeaveOriginalNode !== true)) {
+      if (edge && (edge.targetId != null || !edge.didLeaveOriginalNode)) {
         // We don't know if the node that's being left is the original node, but you can't
         // enter another node without first leaving this one, so it's safe to set.
         return { ...edge, targetId: undefined, didLeaveOriginalNode: true };
@@ -625,7 +622,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge, X extends ob
                 }
               : n;
 
-          if (worldSpaceBounds.containsNode(n)) {
+          if (worldSpaceBounds.containsNode(transformedNode)) {
             return (
               <g
                 key={id}
