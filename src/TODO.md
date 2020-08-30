@@ -22,8 +22,17 @@
   - maybe "constraints" are really "settings"?
 - pan/zoom controls
 - CSS classes all over the place to allow for customization
-- perf? (better way to do drop shadows?)
 - DOM rendering?
 - canvas rendering?
 - audit event handling to make sure it works as intended (for instance, node drag/background click overlap in using document-mouse-up)
 - bug: https://stackoverflow.com/questions/19708943/svg-straight-path-with-clip-path-not-visible-in-chrome ?
+
+# perf
+
+## optimizations
+
+- clipping out-of-bounds elements
+  - naively (axis aligned bounding box)
+    - [x] using react state: seems to make the problem worse
+    - [ ] direct DOM manipuation
+- [ ] low-res rendering while actively interacting?

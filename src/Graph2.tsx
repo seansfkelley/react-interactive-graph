@@ -1,6 +1,5 @@
 import * as React from "react";
 import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
-import throttle from "lodash.throttle";
 import type {
   Node,
   Edge,
@@ -21,37 +20,6 @@ interface PanzoomEvent {
     y: number;
     scale: number;
   };
-}
-
-class Bounds {
-  constructor(
-    private minX: number,
-    private maxX: number,
-    private minY: number,
-    private maxY: number,
-  ) {}
-
-  containsNode(n: Node) {
-    const { x, y, width, height } = n;
-    const halfWidth = width / 2;
-    const halfHeight = height / 2;
-    return this._overlaps(x - halfWidth, x + halfWidth, y - halfHeight, y + halfHeight);
-  }
-
-  containsEdge(n1: Node, n2: Node) {
-    const { x: n1X, y: n1Y } = n1;
-    const { x: n2X, y: n2Y } = n2;
-    return this._overlaps(
-      Math.min(n1X, n2X),
-      Math.max(n1X, n2X),
-      Math.min(n1Y, n2Y),
-      Math.max(n1Y, n2Y),
-    );
-  }
-
-  private _overlaps(minX: number, maxX: number, minY: number, maxY: number) {
-    return maxX > this.minX && minX < this.maxX && maxY > this.minY && minY < this.maxY;
-  }
 }
 
 export interface Grid {
@@ -150,7 +118,6 @@ interface EdgeCreateState {
 }
 
 interface State {
-  worldSpaceBounds: Bounds;
   incompleteEdge?: EdgeCreateState;
   dragState?: NodeDragState;
 }
@@ -160,9 +127,7 @@ export class Graph<
   E extends Edge = Edge,
   X extends object = {}
 > extends React.Component<Props<N, E, X>, State> {
-  state: State = {
-    worldSpaceBounds: new Bounds(-Infinity, Infinity, -Infinity, Infinity),
-  };
+  state: State = {};
 
   // TODO: Why doesn't the compiler respect this?
   static defaultProps = {
@@ -213,7 +178,7 @@ export class Graph<
 
   render() {
     const scale = this.transform?.getScale() ?? 1;
-    const { incompleteEdge, dragState, worldSpaceBounds } = this.state;
+    const { incompleteEdge, dragState } = this.state;
     const { dotSize, spacing, fill } = this._getGrid();
 
     return (
@@ -248,11 +213,7 @@ export class Graph<
             const target = this.props.nodes[e.targetId];
 
             // TODO: We should warn about null nodes, but probably not explode?
-            if (
-              source == null ||
-              target == null ||
-              !worldSpaceBounds.containsEdge(source, target)
-            ) {
+            if (source == null || target == null) {
               return;
             } else {
               return (
@@ -290,7 +251,7 @@ export class Graph<
             </g>
           )}
           {objectEntries(this.props.nodes).map(([id, n]) => {
-            if (dragState?.nodeId === id || !worldSpaceBounds.containsNode(n)) {
+            if (dragState?.nodeId === id) {
               return null;
             } else {
               return (
@@ -304,7 +265,22 @@ export class Graph<
               );
             }
           })}
-          {this._renderDraggingSubgraph()}
+          {dragState && (
+            <DraggingSubgraph
+              nodeId={dragState.nodeId}
+              edgeIds={dragState.edgeIds}
+              nodes={this.props.nodes}
+              edges={this.props.edges}
+              nodeContainerComponent={this.NodeContainer}
+              nodeContentComponent={this.props.nodeComponent}
+              edgeContainerComponent={this.EdgeContainer}
+              edgeContentComponent={this.props.edgeComponent}
+              extraProps={this.props.extraProps}
+              startPosition={dragState.start}
+              scale={this.transform?.getScale() ?? 1}
+              onDragEnd={this._onDragEndSubgraph}
+            />
+          )}
           {this.props.children}
         </g>
       </svg>
@@ -336,30 +312,6 @@ export class Graph<
     </g>
   );
 
-  private _renderDraggingSubgraph() {
-    const { dragState } = this.state;
-    if (dragState) {
-      return (
-        <DraggingSubgraph
-          nodeId={dragState.nodeId}
-          edgeIds={dragState.edgeIds}
-          nodes={this.props.nodes}
-          edges={this.props.edges}
-          nodeContainerComponent={this.NodeContainer}
-          nodeContentComponent={this.props.nodeComponent}
-          edgeContainerComponent={this.EdgeContainer}
-          edgeContentComponent={this.props.edgeComponent}
-          extraProps={this.props.extraProps}
-          startPosition={dragState.start}
-          scale={this.transform?.getScale() ?? 1}
-          onDragFinish={this._onDragFinish}
-        />
-      );
-    } else {
-      return null;
-    }
-  }
-
   private _getGrid(): Required<Grid> {
     const dotSize =
       (typeof this.props.grid !== "boolean" ? this.props.grid?.dotSize : undefined) ??
@@ -372,21 +324,6 @@ export class Graph<
       DEFAULT_GRID_FILL;
     return { dotSize, spacing, fill };
   }
-
-  private _recalculateWorldSpaceBounds = throttle(() => {
-    if (this.root.current) {
-      const rect = this.root.current.getBoundingClientRect();
-      const { x: minX, y: minY } = this._toWorldSpacePosition({
-        clientX: rect.left,
-        clientY: rect.top,
-      });
-      const { x: maxX, y: maxY } = this._toWorldSpacePosition({
-        clientX: rect.right,
-        clientY: rect.bottom,
-      });
-      this.setState({ worldSpaceBounds: new Bounds(minX, maxX, minY, maxY) });
-    }
-  }, 200);
 
   private _toWorldSpacePosition(e: { clientX: number; clientY: number }): Position {
     const { current: root } = this.root;
@@ -572,7 +509,7 @@ export class Graph<
     }
   };
 
-  private _onDragFinish = (e: MouseEvent) => {
+  private _onDragEndSubgraph = (e: MouseEvent) => {
     const { dragState } = this.state;
     if (dragState) {
       if (!this._isWithinFudgeFactor(e, dragState.start)) {
@@ -629,8 +566,6 @@ export class Graph<
             -x - spacing / 2 + (x % spacing)
           }px,${-y - spacing / 2 + (y % spacing)}px)`;
         }
-
-        this._recalculateWorldSpaceBounds();
       });
     } else {
       this.transform = undefined;
@@ -649,7 +584,6 @@ export class Graph<
   }
 
   componentWillUnmount() {
-    this._recalculateWorldSpaceBounds.cancel();
     document.removeEventListener("mousemove", this._onMouseMoveDocument);
     document.removeEventListener("mouseup", this._onMouseUpDocument);
   }

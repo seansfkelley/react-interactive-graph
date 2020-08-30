@@ -18,13 +18,13 @@ export interface Props<N extends Node, E extends Edge, X> {
   edgeContainerComponent: React.ComponentType<{ id: string }>;
   edgeContentComponent: React.ComponentType<EdgeComponentProps<N, E> & X>;
   startPosition: ScreenPosition;
-  onDragFinish: (e: MouseEvent) => void;
+  onDragEnd: (e: MouseEvent) => void;
   scale: number;
   extraProps: X;
 }
 
 export function DraggingSubgraph<N extends Node, E extends Edge, X>(props: Props<N, E, X>) {
-  const { onDragFinish } = props;
+  const { onDragEnd } = props;
   const [lastPosition, setLastPosition] = React.useState<ScreenPosition>(props.startPosition);
 
   const onMouseMoveDocument = React.useCallback((e: MouseEvent) => {
@@ -35,9 +35,9 @@ export function DraggingSubgraph<N extends Node, E extends Edge, X>(props: Props
 
   const onMouseUpDocument = React.useCallback(
     (e: MouseEvent) => {
-      onDragFinish(e);
+      onDragEnd(e);
     },
-    [onDragFinish],
+    [onDragEnd],
   );
 
   useDocumentEvent("mouseup", onMouseUpDocument);
