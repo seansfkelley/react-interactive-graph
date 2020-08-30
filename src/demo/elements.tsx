@@ -44,6 +44,7 @@ export function Node(props: NodeComponentProps & ExtraProps) {
               : "url(#drop-shadow-node)"
             : undefined
         }
+        style={{ cursor: "pointer" }}
       />
       <text
         x={node.x}
@@ -52,6 +53,7 @@ export function Node(props: NodeComponentProps & ExtraProps) {
         dominantBaseline="central"
         fontSize="36"
         fontFamily="sans-serif"
+        style={{ pointerEvents: "none" }}
       >
         {props.nodeId}
       </text>
@@ -85,13 +87,20 @@ export function Edge(props: EdgeComponentProps & ExtraProps) {
   return (
     <>
       {/* Superfat edge to make the click target larger. */}
-      <path d={d} stroke="transparent" strokeWidth={40} fill="transparent" />
+      <path
+        d={d}
+        stroke="transparent"
+        strokeWidth={40}
+        fill="transparent"
+        style={{ cursor: "pointer" }}
+      />
       <path
         d={d}
         stroke={isSelected ? SELECTION_COLOR : "transparent"}
         strokeWidth={3}
         fill="transparent"
         filter={isSelected && props.dropShadows ? "url(#drop-shadow-edge-highlight)" : undefined}
+        style={{ pointerEvents: "none" }}
       />
       <path
         d={d}
@@ -99,7 +108,7 @@ export function Edge(props: EdgeComponentProps & ExtraProps) {
         strokeWidth={isSelected ? 1 : 2}
         fill="transparent"
         filter={isSelected || !props.dropShadows ? undefined : "url(#drop-shadow-edge)"}
-        style={{ markerEnd: "url(#arrow)" }}
+        style={{ markerEnd: "url(#arrow)", pointerEvents: "none" }}
       />
     </>
   );

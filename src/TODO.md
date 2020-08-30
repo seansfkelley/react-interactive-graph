@@ -26,6 +26,7 @@
 - canvas rendering?
 - audit event handling to make sure it works as intended (for instance, node drag/background click overlap in using document-mouse-up)
 - bug: https://stackoverflow.com/questions/19708943/svg-straight-path-with-clip-path-not-visible-in-chrome ?
+- audit libraries and utilities to see if they're still used/dev only
 
 # perf
 
@@ -36,3 +37,7 @@
     - [x] using react state: seems to make the problem worse
     - [ ] direct DOM manipuation
 - [ ] low-res rendering while actively interacting?
+- break apart high-frequency stateful rendering
+  - [x] dragging nodes/edges (seems to work nicely!)
+  - [ ] incomplete edge
+- [ ] compare to other libraries

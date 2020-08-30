@@ -203,6 +203,7 @@ export class Graph<
             height={`${DEFAULT_MAX_ZOOM * 100 * 2}%`}
             onMouseDown={this._onMouseDownBackground}
             onClick={this._onClickBackground}
+            style={{ cursor: "move" }}
           />
           {objectEntries(this.props.edges).map(([id, e]) => {
             if (dragState?.edgeIds.includes(id)) {
@@ -341,10 +342,10 @@ export class Graph<
     };
   }
 
-  private _isWithinFudgeFactor(e: MouseEvent | React.MouseEvent, start: ScreenPosition) {
+  private _isWithinFudgeFactor(p1: ScreenPosition, p2: ScreenPosition) {
     return (
-      Math.abs(e.screenX - start.screenX) <= this.props.clickFudgeFactor! &&
-      Math.abs(e.screenY - start.screenY) <= this.props.clickFudgeFactor!
+      Math.abs(p1.screenX - p2.screenX) <= this.props.clickFudgeFactor! &&
+      Math.abs(p1.screenY - p2.screenY) <= this.props.clickFudgeFactor!
     );
   }
 
@@ -547,6 +548,9 @@ export class Graph<
         // Per the comment on this ref, we forward panning commands manually. This is also why
         // you'll see force: true set on those pan commands.
         disablePan: true,
+        // By unsetting this here and instead setting it on the background, we make sure that the
+        // cursor only looks like a pan/zoom cursor when it's not on a node/edge by default, even if
+        // nodes and edges don't override the style.
         cursor: "default",
         minScale: DEFAULT_MIN_ZOOM,
         maxScale: DEFAULT_MAX_ZOOM,
