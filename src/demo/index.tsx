@@ -3,7 +3,6 @@ import * as React from "react";
 import * as ReactDOM from "react-dom";
 
 import {
-  Graph,
   Node,
   Edge,
   Position,
@@ -15,6 +14,7 @@ import {
   PathDirection,
   CreateEdgeEventDetails,
 } from "../";
+import { Graph } from "../Graph2";
 
 import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
