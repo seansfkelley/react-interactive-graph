@@ -131,6 +131,7 @@ interface ScreenPosition {
 
 interface NodeDragState {
   nodeId: string;
+  edgeIds: string[];
   start: ScreenPosition;
 }
 
@@ -239,35 +240,23 @@ export class Graph<
             onClick={this._onClickBackground}
           />
           {objectEntries(this.props.edges).map(([id, e]) => {
-            let source = this.props.nodes[e.sourceId];
-            let target = this.props.nodes[e.targetId];
-
-            if (source == null || target == null) {
-              // TODO: We should warn about this, but probably not explode?
+            if (draggedNode?.edgeIds.includes(id)) {
               return;
             }
 
-            // TODO: Can this use translation or something less heavyweight?
-            // if (dragState) {
-            //   if (dragState.id === e.sourceId) {
-            //     source = {
-            //       ...source,
-            //       x: (dragState.last.screenX - dragState.start.screenX) / scale + source.x,
-            //       y: (dragState.last.screenY - dragState.start.screenY) / scale + source.y,
-            //     };
-            //   }
-            //   if (dragState.id === e.targetId) {
-            //     target = {
-            //       ...target,
-            //       x: (dragState.last.screenX - dragState.start.screenX) / scale + target.x,
-            //       y: (dragState.last.screenY - dragState.start.screenY) / scale + target.y,
-            //     };
-            //   }
-            // }
+            const source = this.props.nodes[e.sourceId];
+            const target = this.props.nodes[e.targetId];
 
-            if (worldSpaceBounds.containsEdge(source, target)) {
+            // TODO: We should warn about null nodes, but probably not explode?
+            if (
+              source == null ||
+              target == null ||
+              !worldSpaceBounds.containsEdge(source, target)
+            ) {
+              return;
+            } else {
               return (
-                <g key={id} data-id={id} className="panzoom-exclude" onClick={this._onClickEdge}>
+                <this.EdgeWrapper id={id} key={id}>
                   <this.props.edgeComponent
                     edge={e}
                     edgeId={id}
@@ -275,10 +264,8 @@ export class Graph<
                     target={target}
                     {...(this.props.extraProps as any)}
                   />
-                </g>
+                </this.EdgeWrapper>
               );
-            } else {
-              return null;
             }
           })}
           {incompleteEdge && this.props.incompleteEdgeComponent && (
@@ -307,7 +294,7 @@ export class Graph<
               return null;
             } else {
               return (
-                <this.NodeWrapper id={id}>
+                <this.NodeWrapper id={id} key={id}>
                   <this.props.nodeComponent
                     node={n}
                     nodeId={id}
@@ -333,6 +320,18 @@ export class Graph<
       onMouseLeave={this._onMouseLeaveNode}
       onClick={this._onClickNode}
       className="panzoom-exclude"
+      style={{ zIndex: 1, position: "relative" }}
+    >
+      {props.children}
+    </g>
+  );
+
+  private EdgeWrapper = (props: React.PropsWithChildren<{ id: string }>) => (
+    <g
+      data-id={props.id}
+      className="panzoom-exclude"
+      onClick={this._onClickEdge}
+      style={{ zIndex: 0, position: "relative" }}
     >
       {props.children}
     </g>
@@ -344,9 +343,13 @@ export class Graph<
       return (
         <DraggingSubgraph
           nodeId={draggedNode.nodeId}
-          node={this.props.nodes[draggedNode.nodeId]}
+          edgeIds={draggedNode.edgeIds}
+          nodes={this.props.nodes}
+          edges={this.props.edges}
           nodeWrapperComponent={this.NodeWrapper}
           nodeComponent={this.props.nodeComponent}
+          edgeWrapperComponent={this.EdgeWrapper}
+          edgeComponent={this.props.edgeComponent}
           extraProps={this.props.extraProps}
           startPosition={draggedNode.start}
           scale={this.transform?.getScale() ?? 1}
@@ -439,6 +442,9 @@ export class Graph<
       this.setState({
         draggedNode: {
           nodeId: id,
+          edgeIds: objectEntries(this.props.edges)
+            .filter(([_, { sourceId, targetId }]) => sourceId === id || targetId === id)
+            .map(([id, _]) => id),
           start: { screenX, screenY },
         },
       });

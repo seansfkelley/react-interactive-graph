@@ -22,6 +22,7 @@ export interface ExtraProps {
   snap: <T extends Position>(v: T) => T;
   pathType: PathType;
   pathDirection: PathDirection;
+  dropShadows: boolean;
 }
 
 export function Node(props: NodeComponentProps & ExtraProps) {
@@ -36,7 +37,13 @@ export function Node(props: NodeComponentProps & ExtraProps) {
         strokeWidth={isSelected ? 2 : 1}
         fill="white"
         stroke={isSelected ? SELECTION_COLOR : "black"}
-        // filter={isSelected ? "url(#drop-shadow-node-highlight)" : "url(#drop-shadow-node)"}
+        filter={
+          props.dropShadows
+            ? isSelected
+              ? "url(#drop-shadow-node-highlight)"
+              : "url(#drop-shadow-node)"
+            : undefined
+        }
       />
       <text
         x={node.x}
@@ -84,14 +91,14 @@ export function Edge(props: EdgeComponentProps & ExtraProps) {
         stroke={isSelected ? SELECTION_COLOR : "transparent"}
         strokeWidth={3}
         fill="transparent"
-        // filter={isSelected ? "url(#drop-shadow-edge-highlight)" : undefined}
+        filter={isSelected && props.dropShadows ? "url(#drop-shadow-edge-highlight)" : undefined}
       />
       <path
         d={d}
         stroke="black"
         strokeWidth={isSelected ? 1 : 2}
         fill="transparent"
-        // filter={isSelected ? undefined : "url(#drop-shadow-edge)"}
+        filter={isSelected || !props.dropShadows ? undefined : "url(#drop-shadow-edge)"}
         style={{ markerEnd: "url(#arrow)" }}
       />
     </>
@@ -113,7 +120,7 @@ export function IncompleteEdge(props: IncompleteEdgeComponentProps & ExtraProps)
       strokeWidth={2}
       strokeDasharray="20,10"
       fill="transparent"
-      // filter="url(#drop-shadow-edge)"
+      filter={props.dropShadows ? "url(#drop-shadow-edge)" : undefined}
     />
   );
 }
