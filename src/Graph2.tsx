@@ -13,6 +13,7 @@ import type {
   CreateEdgeEventDetails,
 } from "./types";
 import { assertNonNull, assertEqual, objectEntries } from "./lang";
+import { DraggingSubgraph } from "./DraggingSubgraph";
 
 interface PanzoomEvent {
   detail: {
@@ -129,10 +130,8 @@ interface ScreenPosition {
 }
 
 interface NodeDragState {
-  id: string;
-  dragging: boolean;
+  nodeId: string;
   start: ScreenPosition;
-  last: ScreenPosition;
 }
 
 interface PanState {
@@ -152,14 +151,14 @@ interface EdgeCreateState {
 interface State {
   worldSpaceBounds: Bounds;
   incompleteEdge?: EdgeCreateState;
-  dragState?: NodeDragState;
+  draggedNode?: NodeDragState;
 }
 
 export class Graph<
   N extends Node = Node,
   E extends Edge = Edge,
   X extends object = {}
-> extends React.Component<Props<N, E, X>> {
+> extends React.Component<Props<N, E, X>, State> {
   state: State = {
     worldSpaceBounds: new Bounds(-Infinity, Infinity, -Infinity, Infinity),
   };
@@ -213,7 +212,7 @@ export class Graph<
 
   render() {
     const scale = this.transform?.getScale() ?? 1;
-    const { incompleteEdge, dragState, worldSpaceBounds } = this.state;
+    const { incompleteEdge, draggedNode, worldSpaceBounds } = this.state;
     const { dotSize, spacing, fill } = this._getGrid();
 
     return (
@@ -249,22 +248,22 @@ export class Graph<
             }
 
             // TODO: Can this use translation or something less heavyweight?
-            if (dragState) {
-              if (dragState.id === e.sourceId) {
-                source = {
-                  ...source,
-                  x: (dragState.last.screenX - dragState.start.screenX) / scale + source.x,
-                  y: (dragState.last.screenY - dragState.start.screenY) / scale + source.y,
-                };
-              }
-              if (dragState.id === e.targetId) {
-                target = {
-                  ...target,
-                  x: (dragState.last.screenX - dragState.start.screenX) / scale + target.x,
-                  y: (dragState.last.screenY - dragState.start.screenY) / scale + target.y,
-                };
-              }
-            }
+            // if (dragState) {
+            //   if (dragState.id === e.sourceId) {
+            //     source = {
+            //       ...source,
+            //       x: (dragState.last.screenX - dragState.start.screenX) / scale + source.x,
+            //       y: (dragState.last.screenY - dragState.start.screenY) / scale + source.y,
+            //     };
+            //   }
+            //   if (dragState.id === e.targetId) {
+            //     target = {
+            //       ...target,
+            //       x: (dragState.last.screenX - dragState.start.screenX) / scale + target.x,
+            //       y: (dragState.last.screenY - dragState.start.screenY) / scale + target.y,
+            //     };
+            //   }
+            // }
 
             if (worldSpaceBounds.containsEdge(source, target)) {
               return (
@@ -304,42 +303,59 @@ export class Graph<
             </g>
           )}
           {objectEntries(this.props.nodes).map(([id, n]) => {
-            const transformedNode =
-              dragState?.id === id
-                ? {
-                    ...n,
-                    x: (dragState.last.screenX - dragState.start.screenX) / scale + n.x,
-                    y: (dragState.last.screenY - dragState.start.screenY) / scale + n.y,
-                  }
-                : n;
-
-            if (worldSpaceBounds.containsNode(transformedNode)) {
+            if (draggedNode?.nodeId === id || !worldSpaceBounds.containsNode(n)) {
+              return null;
+            } else {
               return (
-                <g
-                  key={id}
-                  data-id={id}
-                  onMouseDown={this._onMouseDownNode}
-                  onMouseUp={this._onMouseUpNode}
-                  onMouseEnter={this._onMouseEnterNode}
-                  onMouseLeave={this._onMouseLeaveNode}
-                  onClick={this._onClickNode}
-                  className="panzoom-exclude"
-                >
+                <this.NodeWrapper id={id}>
                   <this.props.nodeComponent
-                    node={transformedNode}
+                    node={n}
                     nodeId={id}
                     {...(this.props.extraProps as any)}
                   />
-                </g>
+                </this.NodeWrapper>
               );
-            } else {
-              return null;
             }
           })}
+          {this._renderDraggingSubgraph()}
           {this.props.children}
         </g>
       </svg>
     );
+  }
+
+  private NodeWrapper = (props: React.PropsWithChildren<{ id: string }>) => (
+    <g
+      data-id={props.id}
+      onMouseDown={this._onMouseDownNode}
+      onMouseUp={this._onMouseUpNode}
+      onMouseEnter={this._onMouseEnterNode}
+      onMouseLeave={this._onMouseLeaveNode}
+      onClick={this._onClickNode}
+      className="panzoom-exclude"
+    >
+      {props.children}
+    </g>
+  );
+
+  private _renderDraggingSubgraph() {
+    const { draggedNode } = this.state;
+    if (draggedNode) {
+      return (
+        <DraggingSubgraph
+          nodeId={draggedNode.nodeId}
+          node={this.props.nodes[draggedNode.nodeId]}
+          nodeWrapperComponent={this.NodeWrapper}
+          nodeComponent={this.props.nodeComponent}
+          extraProps={this.props.extraProps}
+          startPosition={draggedNode.start}
+          scale={this.transform?.getScale() ?? 1}
+          onDragFinish={this._onDragFinish}
+        />
+      );
+    } else {
+      return null;
+    }
   }
 
   private _getGrid(): Required<Grid> {
@@ -419,13 +435,11 @@ export class Graph<
           didLeaveOriginalNode: false,
         },
       });
-    } else {
+    } else if (this.props.shouldStartNodeDrag?.(e.nativeEvent, details)) {
       this.setState({
-        dragState: {
-          id,
-          dragging: this.props.shouldStartNodeDrag?.(e.nativeEvent, details) ?? false,
+        draggedNode: {
+          nodeId: id,
           start: { screenX, screenY },
-          last: { screenX, screenY },
         },
       });
     }
@@ -523,15 +537,6 @@ export class Graph<
     const { screenX, screenY } = e;
     const scale = this.transform?.getScale() ?? 1;
 
-    if (this.state.dragState?.dragging) {
-      this.setState({
-        dragState: {
-          ...this.state.dragState,
-          last: { screenX, screenY },
-        },
-      });
-    }
-
     if (this.state.incompleteEdge) {
       this.setState({
         incompleteEdge: {
@@ -551,27 +556,29 @@ export class Graph<
     }
   };
 
-  private _onMouseUpDocument = (e: MouseEvent) => {
-    const { dragState } = this.state;
-    if (dragState) {
-      if (!this._isWithinFudgeFactor(e, dragState.start)) {
-        this.shouldSkipNextNodeClick = dragState.id;
+  private _onDragFinish = (e: MouseEvent) => {
+    const { draggedNode } = this.state;
+    if (draggedNode) {
+      if (!this._isWithinFudgeFactor(e, draggedNode.start)) {
+        this.shouldSkipNextNodeClick = draggedNode.nodeId;
         if (this.props.onNodeDragEnd) {
-          const node = this.props.nodes[dragState.id];
+          const node = this.props.nodes[draggedNode.nodeId];
           const scale = this.transform?.getScale() ?? 1;
           this.props.onNodeDragEnd(e, {
             node,
-            id: dragState.id,
+            id: draggedNode.nodeId,
             position: {
-              x: (e.screenX - dragState.start.screenX) / scale + node.x,
-              y: (e.screenY - dragState.start.screenY) / scale + node.y,
+              x: (e.screenX - draggedNode.start.screenX) / scale + node.x,
+              y: (e.screenY - draggedNode.start.screenY) / scale + node.y,
             },
           });
         }
       }
-      this.setState({ dragState: undefined });
     }
+    this.setState({ draggedNode: undefined });
+  };
 
+  private _onMouseUpDocument = (e: MouseEvent) => {
     if (this.pan) {
       this.shouldSkipNextBackgroundClick = !this._isWithinFudgeFactor(e, this.pan.start);
       this.pan = undefined;
