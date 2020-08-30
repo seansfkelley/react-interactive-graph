@@ -13,7 +13,8 @@
     "test": "tsc --noemit",
     "lint": "prettier --check src/**/* && eslint . --ext .js,.jsx,.ts,.tsx",
     "prepublishOnly": "tsc",
-    "serve": "parcel src/demo/index.html"
+    "serve": "parcel src/demo/index.html",
+    "serve-minified": "NODE_ENV=production parcel src/demo/index.html"
   },
   "peerDepencencies": {
     "react": "^16.13.1"
