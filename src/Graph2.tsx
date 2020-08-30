@@ -152,7 +152,7 @@ interface EdgeCreateState {
 interface State {
   worldSpaceBounds: Bounds;
   incompleteEdge?: EdgeCreateState;
-  draggedNode?: NodeDragState;
+  dragState?: NodeDragState;
 }
 
 export class Graph<
@@ -213,7 +213,7 @@ export class Graph<
 
   render() {
     const scale = this.transform?.getScale() ?? 1;
-    const { incompleteEdge, draggedNode, worldSpaceBounds } = this.state;
+    const { incompleteEdge, dragState, worldSpaceBounds } = this.state;
     const { dotSize, spacing, fill } = this._getGrid();
 
     return (
@@ -240,7 +240,7 @@ export class Graph<
             onClick={this._onClickBackground}
           />
           {objectEntries(this.props.edges).map(([id, e]) => {
-            if (draggedNode?.edgeIds.includes(id)) {
+            if (dragState?.edgeIds.includes(id)) {
               return;
             }
 
@@ -256,7 +256,7 @@ export class Graph<
               return;
             } else {
               return (
-                <this.EdgeWrapper id={id} key={id}>
+                <this.EdgeContainer id={id} key={id}>
                   <this.props.edgeComponent
                     edge={e}
                     edgeId={id}
@@ -264,7 +264,7 @@ export class Graph<
                     target={target}
                     {...(this.props.extraProps as any)}
                   />
-                </this.EdgeWrapper>
+                </this.EdgeContainer>
               );
             }
           })}
@@ -290,17 +290,17 @@ export class Graph<
             </g>
           )}
           {objectEntries(this.props.nodes).map(([id, n]) => {
-            if (draggedNode?.nodeId === id || !worldSpaceBounds.containsNode(n)) {
+            if (dragState?.nodeId === id || !worldSpaceBounds.containsNode(n)) {
               return null;
             } else {
               return (
-                <this.NodeWrapper id={id} key={id}>
+                <this.NodeContainer id={id} key={id}>
                   <this.props.nodeComponent
                     node={n}
                     nodeId={id}
                     {...(this.props.extraProps as any)}
                   />
-                </this.NodeWrapper>
+                </this.NodeContainer>
               );
             }
           })}
@@ -311,7 +311,11 @@ export class Graph<
     );
   }
 
-  private NodeWrapper = (props: React.PropsWithChildren<{ id: string }>) => (
+  // Normally, defining a component like this is a recipe for disaster, because the definition will
+  // capture things like this.props at the wrong time and end up failing to rerender when it should.
+  // However, this usage is safe, because the only things that are baked into the component here
+  // are scoped to the lifetime of the containing component, by design.
+  private NodeContainer = (props: React.PropsWithChildren<{ id: string }>) => (
     <g
       data-id={props.id}
       onMouseDown={this._onMouseDownNode}
@@ -320,38 +324,33 @@ export class Graph<
       onMouseLeave={this._onMouseLeaveNode}
       onClick={this._onClickNode}
       className="panzoom-exclude"
-      style={{ zIndex: 1, position: "relative" }}
     >
       {props.children}
     </g>
   );
 
-  private EdgeWrapper = (props: React.PropsWithChildren<{ id: string }>) => (
-    <g
-      data-id={props.id}
-      className="panzoom-exclude"
-      onClick={this._onClickEdge}
-      style={{ zIndex: 0, position: "relative" }}
-    >
+  // See NodeContainer for why this component is safe.
+  private EdgeContainer = (props: React.PropsWithChildren<{ id: string }>) => (
+    <g data-id={props.id} className="panzoom-exclude" onClick={this._onClickEdge}>
       {props.children}
     </g>
   );
 
   private _renderDraggingSubgraph() {
-    const { draggedNode } = this.state;
-    if (draggedNode) {
+    const { dragState } = this.state;
+    if (dragState) {
       return (
         <DraggingSubgraph
-          nodeId={draggedNode.nodeId}
-          edgeIds={draggedNode.edgeIds}
+          nodeId={dragState.nodeId}
+          edgeIds={dragState.edgeIds}
           nodes={this.props.nodes}
           edges={this.props.edges}
-          nodeWrapperComponent={this.NodeWrapper}
-          nodeComponent={this.props.nodeComponent}
-          edgeWrapperComponent={this.EdgeWrapper}
-          edgeComponent={this.props.edgeComponent}
+          nodeContainerComponent={this.NodeContainer}
+          nodeContentComponent={this.props.nodeComponent}
+          edgeContainerComponent={this.EdgeContainer}
+          edgeContentComponent={this.props.edgeComponent}
           extraProps={this.props.extraProps}
-          startPosition={draggedNode.start}
+          startPosition={dragState.start}
           scale={this.transform?.getScale() ?? 1}
           onDragFinish={this._onDragFinish}
         />
@@ -451,7 +450,7 @@ export class Graph<
       });
     } else if (this.props.shouldStartNodeDrag?.(e.nativeEvent, details)) {
       this.setState({
-        draggedNode: {
+        dragState: {
           nodeId: id,
           edgeIds: objectEntries(this.props.edges)
             .filter(([_, { sourceId, targetId }]) => sourceId === id || targetId === id)
@@ -574,25 +573,25 @@ export class Graph<
   };
 
   private _onDragFinish = (e: MouseEvent) => {
-    const { draggedNode } = this.state;
-    if (draggedNode) {
-      if (!this._isWithinFudgeFactor(e, draggedNode.start)) {
-        this.shouldSkipNextNodeClick = draggedNode.nodeId;
+    const { dragState } = this.state;
+    if (dragState) {
+      if (!this._isWithinFudgeFactor(e, dragState.start)) {
+        this.shouldSkipNextNodeClick = dragState.nodeId;
         if (this.props.onNodeDragEnd) {
-          const node = this.props.nodes[draggedNode.nodeId];
+          const node = this.props.nodes[dragState.nodeId];
           const scale = this.transform?.getScale() ?? 1;
           this.props.onNodeDragEnd(e, {
             node,
-            id: draggedNode.nodeId,
+            id: dragState.nodeId,
             position: {
-              x: (e.screenX - draggedNode.start.screenX) / scale + node.x,
-              y: (e.screenY - draggedNode.start.screenY) / scale + node.y,
+              x: (e.screenX - dragState.start.screenX) / scale + node.x,
+              y: (e.screenY - dragState.start.screenY) / scale + node.y,
             },
           });
         }
       }
     }
-    this.setState({ draggedNode: undefined });
+    this.setState({ dragState: undefined });
   };
 
   private _onMouseUpDocument = (e: MouseEvent) => {

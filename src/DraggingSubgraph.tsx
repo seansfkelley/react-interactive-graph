@@ -13,10 +13,10 @@ export interface Props<N extends Node, E extends Edge, X> {
   edgeIds: string[];
   nodes: Record<string, N>;
   edges: Record<string, E>;
-  nodeWrapperComponent: React.ComponentType<{ id: string }>;
-  nodeComponent: React.ComponentType<NodeComponentProps<N> & X>;
-  edgeWrapperComponent: React.ComponentType<{ id: string }>;
-  edgeComponent: React.ComponentType<EdgeComponentProps<N, E> & X>;
+  nodeContainerComponent: React.ComponentType<{ id: string }>;
+  nodeContentComponent: React.ComponentType<NodeComponentProps<N> & X>;
+  edgeContainerComponent: React.ComponentType<{ id: string }>;
+  edgeContentComponent: React.ComponentType<EdgeComponentProps<N, E> & X>;
   startPosition: ScreenPosition;
   onDragFinish: (e: MouseEvent) => void;
   scale: number;
@@ -52,9 +52,13 @@ export function DraggingSubgraph<N extends Node, E extends Edge, X>(props: Props
 
   return (
     <>
-      <props.nodeWrapperComponent id={props.nodeId}>
-        <props.nodeComponent node={transformedNode} nodeId={props.nodeId} {...props.extraProps} />
-      </props.nodeWrapperComponent>
+      <props.nodeContainerComponent id={props.nodeId}>
+        <props.nodeContentComponent
+          node={transformedNode}
+          nodeId={props.nodeId}
+          {...props.extraProps}
+        />
+      </props.nodeContainerComponent>
       {props.edgeIds.map((id) => {
         const edge = props.edges[id];
         let source = props.nodes[edge.sourceId];
@@ -77,15 +81,15 @@ export function DraggingSubgraph<N extends Node, E extends Edge, X>(props: Props
         }
 
         return (
-          <props.edgeWrapperComponent id={id} key={id}>
-            <props.edgeComponent
+          <props.edgeContainerComponent id={id} key={id}>
+            <props.edgeContentComponent
               edge={edge}
               edgeId={id}
               source={source}
               target={target}
               {...props.extraProps}
             />
-          </props.edgeWrapperComponent>
+          </props.edgeContainerComponent>
         );
       })}
     </>
