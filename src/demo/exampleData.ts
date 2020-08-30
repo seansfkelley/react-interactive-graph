@@ -15,16 +15,23 @@ export enum ExampleType {
   STRESS_TEST = "Stress Test",
 }
 
-export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] }> = {
+type WithId<T extends object> = T & {
+  id: string;
+};
+
+export const GENERATE: Record<
+  ExampleType,
+  () => { nodes: WithId<Node>[]; edges: WithId<Edge>[] }
+> = {
   [ExampleType.SIMPLE]: () => {
-    const nodes: Node[] = [
+    const nodes: WithId<Node>[] = [
       { id: nextId(), x: -100, y: 100, width: NODE_SIZE, height: NODE_SIZE },
       { id: nextId(), x: -100, y: -100, width: NODE_SIZE, height: NODE_SIZE },
       { id: nextId(), x: 100, y: 100, width: NODE_SIZE, height: NODE_SIZE },
       { id: nextId(), x: 100, y: -100, width: NODE_SIZE, height: NODE_SIZE },
     ];
 
-    const edges: Edge[] = [
+    const edges: WithId<Edge>[] = [
       { id: nextId(), sourceId: nodes[0].id, targetId: nodes[1].id },
       { id: nextId(), sourceId: nodes[1].id, targetId: nodes[2].id },
       { id: nextId(), sourceId: nodes[2].id, targetId: nodes[3].id },
@@ -36,7 +43,7 @@ export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] 
     return { nodes, edges };
   },
   [ExampleType.DAG]: () => {
-    const nodes: Node[] = [
+    const nodes: WithId<Node>[] = [
       { id: nextId(), x: 0, y: -150, width: NODE_SIZE, height: NODE_SIZE },
       { id: nextId(), x: -75, y: 0, width: NODE_SIZE, height: NODE_SIZE },
       { id: nextId(), x: 150, y: 0, width: NODE_SIZE, height: NODE_SIZE },
@@ -48,7 +55,7 @@ export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] 
       { id: nextId(), x: -75, y: 450, width: NODE_SIZE, height: NODE_SIZE },
       { id: nextId(), x: 225, y: 450, width: NODE_SIZE, height: NODE_SIZE },
     ];
-    const edges: Edge[] = [
+    const edges: WithId<Edge>[] = [
       { id: nextId(), sourceId: nodes[0].id, targetId: nodes[1].id },
       { id: nextId(), sourceId: nodes[0].id, targetId: nodes[2].id },
       { id: nextId(), sourceId: nodes[2].id, targetId: nodes[3].id },
@@ -64,7 +71,7 @@ export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] 
     return { nodes, edges };
   },
   [ExampleType.RANDOM]: () => {
-    const nodes: Node[] = Array(20)
+    const nodes: WithId<Node>[] = Array(20)
       .fill(undefined)
       .map(() => ({
         id: nextId(),
@@ -74,7 +81,7 @@ export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] 
         height: NODE_SIZE,
       }));
 
-    const edges: Edge[] = Array(30)
+    const edges: WithId<Edge>[] = Array(30)
       .fill(undefined)
       .map(() => ({
         id: nextId(),
@@ -85,7 +92,7 @@ export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] 
     return { nodes, edges };
   },
   [ExampleType.STRESS_TEST]: () => {
-    const nodes: Node[] = Array(100)
+    const nodes: WithId<Node>[] = Array(100)
       .fill(undefined)
       .map(() => ({
         id: nextId(),
@@ -95,7 +102,7 @@ export const GENERATE: Record<ExampleType, () => { nodes: Node[]; edges: Edge[] 
         height: NODE_SIZE,
       }));
 
-    const edges: Edge[] = Array(200)
+    const edges: WithId<Edge>[] = Array(200)
       .fill(undefined)
       .map(() => ({
         id: nextId(),

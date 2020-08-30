@@ -26,6 +26,4 @@
 - DOM rendering?
 - canvas rendering?
 - audit event handling to make sure it works as intended (for instance, node drag/background click overlap in using document-mouse-up)
-- alternate data model: only takes array of node IDs and an adjacency list?
-- bug: the edges of the background will lose dots while panning with certain dimensions
 - bug: https://stackoverflow.com/questions/19708943/svg-straight-path-with-clip-path-not-visible-in-chrome ?

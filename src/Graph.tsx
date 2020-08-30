@@ -1,7 +1,17 @@
 import * as React from "react";
 import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
-import type { Node, Edge, Position } from "./types";
-import { assertNonNull, assertEqual, keyBy } from "./lang";
+import type {
+  Node,
+  Edge,
+  Position,
+  NodeComponentProps,
+  EdgeComponentProps,
+  IncompleteEdgeComponentProps,
+  NodeEventDetails,
+  EdgeEventDetails,
+  CreateEdgeEventDetails,
+} from "./types";
+import { assertNonNull, assertEqual, objectEntries } from "./lang";
 import { useDocumentEvent, useThrottledState } from "./hooks";
 
 interface PanzoomEvent {
@@ -67,14 +77,15 @@ export interface ZoomConstraints {
   speed: number;
 }
 
-export interface Props<N extends Node = Node, E extends Edge = Edge> {
-  nodes: N[];
-  edges: E[];
+export interface Props<N extends Node = Node, E extends Edge = Edge, X extends object = {}> {
+  nodes: Record<string, N>;
+  edges: Record<string, E>;
   grid?: Partial<Grid> | boolean;
 
-  renderNode: (node: N) => React.ReactNode;
-  renderEdge: (edge: E, source: N, target: N) => React.ReactNode;
-  renderIncompleteEdge?: (source: N, position: Position, target: N | undefined) => React.ReactNode;
+  nodeComponent: React.ComponentType<NodeComponentProps<N> & X>;
+  edgeComponent: React.ComponentType<EdgeComponentProps<N, E> & X>;
+  incompleteEdgeComponent?: React.ComponentType<IncompleteEdgeComponentProps<N> & X>;
+  extraProps?: X;
 
   // TODO: All of these.
   pan?: Partial<Pan> | boolean;
@@ -89,15 +100,15 @@ export interface Props<N extends Node = Node, E extends Edge = Edge> {
   // TODO
   // shouldZoom?: (e: React.MouseEvent) => boolean;
 
-  onClickNode?: (e: React.MouseEvent, node: N, position: Position) => void;
-  onClickEdge?: (e: React.MouseEvent, edge: E, source: N, target: N, position: Position) => void;
+  onClickNode?: (e: React.MouseEvent, details: NodeEventDetails<N>) => void;
+  onClickEdge?: (e: React.MouseEvent, details: EdgeEventDetails<N, E>) => void;
   onClickBackground?: (e: React.MouseEvent, position: Position) => void;
 
-  shouldStartNodeDrag?: (e: MouseEvent, node: N) => boolean;
-  onNodeDragEnd?: (e: MouseEvent, node: N, position: Position) => void;
+  shouldStartNodeDrag?: (e: MouseEvent, details: NodeEventDetails<N>) => boolean;
+  onNodeDragEnd?: (e: MouseEvent, details: NodeEventDetails<N>) => void;
 
-  shouldStartCreateEdge?: (e: React.MouseEvent, source: N) => boolean;
-  onCreateEdgeEnd?: (e: React.MouseEvent, source: N, target: N) => void;
+  shouldStartCreateEdge?: (e: React.MouseEvent, details: NodeEventDetails<N>) => boolean;
+  onCreateEdgeEnd?: (e: React.MouseEvent, details: CreateEdgeEventDetails<N>) => void;
 
   className?: string;
   style?: React.SVGAttributes<SVGSVGElement>["style"];
@@ -130,26 +141,19 @@ interface PanState {
   last: ScreenPosition;
 }
 
-interface EdgeCreateState<N extends Node> {
-  source: N;
-  target?: N;
+interface EdgeCreateState {
+  sourceId: string;
+  targetId?: string;
   start: ScreenPosition;
   last: ScreenPosition;
   didLeaveOriginalNode: boolean;
 }
 
-export function Graph<N extends Node = Node, E extends Edge = Edge>(
-  props: React.PropsWithChildren<Props<N, E>>,
+export function Graph<N extends Node = Node, E extends Edge = Edge, X extends object = {}>(
+  props: React.PropsWithChildren<Props<N, E, X>>,
 ) {
-  const nodesById = React.useMemo(() => keyBy(props.nodes as Node[], "id"), [
-    props.nodes,
-  ]) as Record<string, N>;
-
-  const edgesById = React.useMemo(() => keyBy(props.edges as Edge[], "id"), [
-    props.edges,
-  ]) as Record<string, E>;
-
-  const [incompleteEdge, setIncompleteEdge] = React.useState<EdgeCreateState<N> | undefined>();
+  const { nodes, edges } = props;
+  const [incompleteEdge, setIncompleteEdge] = React.useState<EdgeCreateState | undefined>();
 
   const [worldSpaceBounds, setWorldSpaceBounds] = useThrottledState<Bounds>(
     new Bounds(-Infinity, Infinity, -Infinity, Infinity),
@@ -284,11 +288,12 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
     (e: React.MouseEvent<SVGGElement>) => {
       const { id } = e.currentTarget.dataset;
       assertNonNull(id);
-      const node = nodesById[id];
+      const node = nodes[id];
       const { screenX, screenY } = e;
-      if (shouldStartCreateEdge?.(e, node)) {
+      const details: NodeEventDetails<N> = { node, id, position: toWorldSpacePosition(e) };
+      if (shouldStartCreateEdge?.(e, details)) {
         setIncompleteEdge({
-          source: node,
+          sourceId: id,
           // Note that we don't set target here; if you want to create a self-edge you have to leave
           // and come back. This is... fine. If this behavior ever changes, make sure to change the
           // semantics of didLeaveOriginalNode as well. That value is used to differentiate between
@@ -301,13 +306,13 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       } else {
         setDragState({
           id,
-          dragging: shouldStartNodeDrag?.(e.nativeEvent, node) ?? false,
+          dragging: shouldStartNodeDrag?.(e.nativeEvent, details) ?? false,
           start: { screenX, screenY },
           last: { screenX, screenY },
         });
       }
     },
-    [shouldStartCreateEdge, shouldStartNodeDrag, nodesById],
+    [shouldStartCreateEdge, shouldStartNodeDrag, toWorldSpacePosition, nodes],
   );
 
   const onMouseUpNode = React.useCallback(
@@ -318,14 +323,18 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         if (!isWithinFudgeFactor(e, incompleteEdge.start) || incompleteEdge.didLeaveOriginalNode) {
           shouldSkipNextNodeClick.current = id;
           if (onCreateEdgeEnd) {
-            const node = nodesById[id];
-            onCreateEdgeEnd(e, incompleteEdge.source, node);
+            onCreateEdgeEnd(e, {
+              source: nodes[incompleteEdge.sourceId],
+              sourceId: incompleteEdge.sourceId,
+              target: nodes[id],
+              targetId: id,
+            });
           }
         }
         setIncompleteEdge(undefined);
       }
     },
-    [onCreateEdgeEnd, incompleteEdge, nodesById, isWithinFudgeFactor],
+    [onCreateEdgeEnd, incompleteEdge, nodes, isWithinFudgeFactor],
   );
 
   const onMouseEnterNode = React.useCallback(
@@ -336,23 +345,23 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         if (edge) {
           return {
             ...edge,
-            target: nodesById[id],
+            target: nodes[id],
           };
         } else {
           return undefined;
         }
       });
     },
-    [nodesById],
+    [nodes],
   );
 
   const onMouseLeaveNode = React.useCallback(() => {
     setIncompleteEdge((edge) => {
       // Check to see if we need to actually shallowly mutate and rerender first...
-      if (edge && (edge?.target != null || edge?.didLeaveOriginalNode !== true)) {
+      if (edge && (edge?.targetId != null || edge?.didLeaveOriginalNode !== true)) {
         // We don't know if the node that's being left is the original node, but you can't
         // enter another node without first leaving this one, so it's safe to set.
-        return { ...edge, target: undefined, didLeaveOriginalNode: true };
+        return { ...edge, targetId: undefined, didLeaveOriginalNode: true };
       } else {
         return edge;
       }
@@ -367,11 +376,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         assertEqual(shouldSkipNextNodeClick.current, id);
         shouldSkipNextNodeClick.current = undefined;
       } else if (onClickNode) {
-        const node = nodesById[id];
-        onClickNode(e, node, toWorldSpacePosition(e));
+        const node = nodes[id];
+        onClickNode(e, { node, id, position: toWorldSpacePosition(e) });
       }
     },
-    [onClickNode, nodesById, toWorldSpacePosition],
+    [onClickNode, nodes, toWorldSpacePosition],
   );
 
   const onClickEdgeWrapper = React.useCallback(
@@ -379,17 +388,17 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       if (onClickEdge) {
         const { id } = e.currentTarget.dataset;
         assertNonNull(id);
-        const edge = edgesById[id];
-        onClickEdge(
-          e,
+        const edge = edges[id];
+        onClickEdge(e, {
           edge,
-          nodesById[edge.sourceId],
-          nodesById[edge.targetId],
-          toWorldSpacePosition(e),
-        );
+          id,
+          source: nodes[edge.sourceId],
+          target: nodes[edge.targetId],
+          position: toWorldSpacePosition(e),
+        });
       }
     },
-    [onClickEdge, nodesById, edgesById, toWorldSpacePosition],
+    [onClickEdge, nodes, edges, toWorldSpacePosition],
   );
 
   const onWheelContainer = React.useCallback((e: React.WheelEvent) => {
@@ -435,11 +444,15 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
         if (!isWithinFudgeFactor(e, dragState.start)) {
           shouldSkipNextNodeClick.current = dragState.id;
           if (onNodeDragEnd) {
-            const node = nodesById[dragState.id];
+            const node = nodes[dragState.id];
             const scale = transformRef.current?.getScale() ?? 1;
-            onNodeDragEnd(e, node, {
-              x: (e.screenX - dragState.start.screenX) / scale + node.x,
-              y: (e.screenY - dragState.start.screenY) / scale + node.y,
+            onNodeDragEnd(e, {
+              node,
+              id: dragState.id,
+              position: {
+                x: (e.screenX - dragState.start.screenX) / scale + node.x,
+                y: (e.screenY - dragState.start.screenY) / scale + node.y,
+              },
             });
           }
         }
@@ -455,7 +468,7 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
       // If we didn't release on a node, stop creation anyway.
       setIncompleteEdge(undefined);
     },
-    [dragState, nodesById, onNodeDragEnd, isWithinFudgeFactor],
+    [dragState, nodes, onNodeDragEnd, isWithinFudgeFactor],
   );
 
   useDocumentEvent("mouseup", onMouseUpDocument);
@@ -540,9 +553,9 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           onMouseDown={onMouseDownBackground}
           onClick={onClickBackgroundWrapper}
         />
-        {props.edges.map((e) => {
-          let source = nodesById[e.sourceId];
-          let target = nodesById[e.targetId];
+        {objectEntries(edges).map(([id, e]) => {
+          let source = nodes[e.sourceId];
+          let target = nodes[e.targetId];
 
           if (source == null || target == null) {
             // TODO: We should warn about this, but probably not explode?
@@ -551,14 +564,14 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
           // TODO: Can this use translation or something less heavyweight?
           if (dragState) {
-            if (dragState.id === source.id) {
+            if (dragState.id === e.sourceId) {
               source = {
                 ...source,
                 x: (dragState.last.screenX - dragState.start.screenX) / scale + source.x,
                 y: (dragState.last.screenY - dragState.start.screenY) / scale + source.y,
               };
             }
-            if (dragState.id === target.id) {
+            if (dragState.id === e.targetId) {
               target = {
                 ...target,
                 x: (dragState.last.screenX - dragState.start.screenX) / scale + target.x,
@@ -569,33 +582,42 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
 
           if (worldSpaceBounds.containsEdge(source, target)) {
             return (
-              <g key={e.id} data-id={e.id} className="panzoom-exclude" onClick={onClickEdgeWrapper}>
-                {props.renderEdge(e, source, target)}
+              <g key={id} data-id={id} className="panzoom-exclude" onClick={onClickEdgeWrapper}>
+                <props.edgeComponent
+                  edge={e}
+                  edgeId={id}
+                  source={source}
+                  target={target}
+                  {...(props.extraProps as any)}
+                />
               </g>
             );
           } else {
             return null;
           }
         })}
-        {incompleteEdge && props.renderIncompleteEdge && (
+        {incompleteEdge && props.incompleteEdgeComponent && (
           <g className="panzoom-exclude">
-            {props.renderIncompleteEdge(
-              incompleteEdge.source,
-              {
+            <props.incompleteEdgeComponent
+              source={nodes[incompleteEdge.sourceId]}
+              sourceId={incompleteEdge.sourceId}
+              position={{
                 x:
                   (incompleteEdge.last.screenX - incompleteEdge.start.screenX) / scale +
-                  incompleteEdge.source.x,
+                  nodes[incompleteEdge.sourceId].x,
                 y:
                   (incompleteEdge.last.screenY - incompleteEdge.start.screenY) / scale +
-                  incompleteEdge.source.y,
-              },
-              incompleteEdge.target,
-            )}
+                  nodes[incompleteEdge.sourceId].y,
+              }}
+              target={incompleteEdge.targetId ? nodes[incompleteEdge.targetId] : undefined}
+              targetId={incompleteEdge.targetId}
+              {...(props.extraProps as any)}
+            />
           </g>
         )}
-        {props.nodes.map((n) => {
+        {objectEntries(nodes).map(([id, n]) => {
           const transformedNode =
-            dragState?.id === n.id
+            dragState?.id === id
               ? {
                   ...n,
                   x: (dragState.last.screenX - dragState.start.screenX) / scale + n.x,
@@ -606,8 +628,8 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
           if (worldSpaceBounds.containsNode(n)) {
             return (
               <g
-                key={n.id}
-                data-id={n.id}
+                key={id}
+                data-id={id}
                 onMouseDown={onMouseDownNode}
                 onMouseUp={onMouseUpNode}
                 onMouseEnter={onMouseEnterNode}
@@ -615,7 +637,11 @@ export function Graph<N extends Node = Node, E extends Edge = Edge>(
                 onClick={onClickNodeWrapper}
                 className="panzoom-exclude"
               >
-                {props.renderNode(transformedNode)}
+                <props.nodeComponent
+                  node={transformedNode}
+                  nodeId={id}
+                  {...(props.extraProps as any)}
+                />
               </g>
             );
           } else {
