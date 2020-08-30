@@ -14,8 +14,8 @@ import {
   PathDirection,
   CreateEdgeEventDetails,
 } from "../";
-import { Graph } from "../Graph";
-// import { Graph } from "../Graph2";
+// import { Graph } from "../Graph";
+import { Graph } from "../Graph2";
 
 import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
@@ -73,7 +73,7 @@ export function Demo() {
       pathType,
       pathDirection,
       snap,
-      dropShadows: true,
+      dropShadows: false,
     }),
     [nodeSelection, edgeSelection, pathType, pathDirection, snap],
   );

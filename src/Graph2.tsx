@@ -374,9 +374,20 @@ export class Graph<
     return { dotSize, spacing, fill };
   }
 
-  private _setWorldSpaceBounds = throttle((worldSpaceBounds: Bounds) => {
-    this.setState({ worldSpaceBounds });
-  });
+  private _recalculateWorldSpaceBounds = throttle(() => {
+    if (this.root.current) {
+      const rect = this.root.current.getBoundingClientRect();
+      const { x: minX, y: minY } = this._toWorldSpacePosition({
+        clientX: rect.left,
+        clientY: rect.top,
+      });
+      const { x: maxX, y: maxY } = this._toWorldSpacePosition({
+        clientX: rect.right,
+        clientY: rect.bottom,
+      });
+      this.setState({ worldSpaceBounds: new Bounds(minX, maxX, minY, maxY) });
+    }
+  }, 200);
 
   private _toWorldSpacePosition(e: { clientX: number; clientY: number }): Position {
     const { current: root } = this.root;
@@ -620,18 +631,7 @@ export class Graph<
           }px,${-y - spacing / 2 + (y % spacing)}px)`;
         }
 
-        if (this.root.current) {
-          const rect = this.root.current.getBoundingClientRect();
-          const { x: minX, y: minY } = this._toWorldSpacePosition({
-            clientX: rect.left,
-            clientY: rect.top,
-          });
-          const { x: maxX, y: maxY } = this._toWorldSpacePosition({
-            clientX: rect.right,
-            clientY: rect.bottom,
-          });
-          this._setWorldSpaceBounds(new Bounds(minX, maxX, minY, maxY));
-        }
+        this._recalculateWorldSpaceBounds();
       });
     } else {
       this.transform = undefined;
@@ -650,7 +650,7 @@ export class Graph<
   }
 
   componentWillUnmount() {
-    this._setWorldSpaceBounds.cancel();
+    this._recalculateWorldSpaceBounds.cancel();
     document.removeEventListener("mousemove", this._onMouseMoveDocument);
     document.removeEventListener("mouseup", this._onMouseUpDocument);
   }
