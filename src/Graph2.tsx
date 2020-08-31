@@ -12,7 +12,6 @@ import type {
   CreateEdgeEventDetails,
 } from "./types";
 import { assertNonNull, assertEqual, objectEntries } from "./lang";
-import { DraggingSubgraph } from "./DraggingSubgraph";
 
 interface PanzoomEvent {
   detail: {
@@ -99,8 +98,8 @@ interface ScreenPosition {
 
 interface NodeDragState {
   nodeId: string;
-  edgeIds: string[];
   start: ScreenPosition;
+  last: ScreenPosition;
 }
 
 interface PanState {
@@ -206,29 +205,44 @@ export class Graph<
             style={{ cursor: "move" }}
           />
           {objectEntries(this.props.edges).map(([id, e]) => {
-            if (dragState?.edgeIds.includes(id)) {
-              return;
-            }
-
-            const source = this.props.nodes[e.sourceId];
-            const target = this.props.nodes[e.targetId];
+            let source = this.props.nodes[e.sourceId];
+            let target = this.props.nodes[e.targetId];
 
             // TODO: We should warn about null nodes, but probably not explode?
             if (source == null || target == null) {
               return;
-            } else {
-              return (
-                <this.EdgeContainer id={id} key={id}>
-                  <this.props.edgeComponent
-                    edge={e}
-                    edgeId={id}
-                    source={source}
-                    target={target}
-                    {...(this.props.extraProps as any)}
-                  />
-                </this.EdgeContainer>
-              );
             }
+
+            if (dragState) {
+              if (dragState.nodeId === e.sourceId) {
+                source = {
+                  ...source,
+                  x: (dragState.last.screenX - dragState.start.screenX) / scale + source.x,
+                  y: (dragState.last.screenY - dragState.start.screenY) / scale + source.y,
+                };
+              }
+
+              if (dragState.nodeId === e.targetId) {
+                target = {
+                  ...target,
+                  x: (dragState.last.screenX - dragState.start.screenX) / scale + target.x,
+                  y: (dragState.last.screenY - dragState.start.screenY) / scale + target.y,
+                };
+              }
+            }
+
+            return (
+              <EdgeContainer
+                key={id}
+                id={id}
+                edge={e}
+                source={source}
+                target={target}
+                extraProps={this.props.extraProps}
+                contentComponent={this.props.edgeComponent as any}
+                onClick={this._onClickEdge}
+              />
+            );
           })}
           {incompleteEdge && this.props.incompleteEdgeComponent && (
             <g className="panzoom-exclude">
@@ -252,66 +266,36 @@ export class Graph<
             </g>
           )}
           {objectEntries(this.props.nodes).map(([id, n]) => {
+            let node = n;
+
             if (dragState?.nodeId === id) {
-              return null;
-            } else {
-              return (
-                <this.NodeContainer id={id} key={id}>
-                  <this.props.nodeComponent
-                    node={n}
-                    nodeId={id}
-                    {...(this.props.extraProps as any)}
-                  />
-                </this.NodeContainer>
-              );
+              node = {
+                ...node,
+                x: (dragState.last.screenX - dragState.start.screenX) / scale + node.x,
+                y: (dragState.last.screenY - dragState.start.screenY) / scale + node.y,
+              };
             }
+
+            return (
+              <NodeContainer
+                key={id}
+                id={id}
+                node={node}
+                extraProps={this.props.extraProps}
+                contentComponent={this.props.nodeComponent as any}
+                onMouseDown={this._onMouseDownNode}
+                onMouseUp={this._onMouseUpNode}
+                onMouseEnter={this._onMouseEnterNode}
+                onMouseLeave={this._onMouseLeaveNode}
+                onClick={this._onClickNode}
+              />
+            );
           })}
-          {dragState && (
-            <DraggingSubgraph
-              nodeId={dragState.nodeId}
-              edgeIds={dragState.edgeIds}
-              nodes={this.props.nodes}
-              edges={this.props.edges}
-              nodeContainerComponent={this.NodeContainer}
-              nodeContentComponent={this.props.nodeComponent}
-              edgeContainerComponent={this.EdgeContainer}
-              edgeContentComponent={this.props.edgeComponent}
-              extraProps={this.props.extraProps}
-              startPosition={dragState.start}
-              scale={this.transform?.getScale() ?? 1}
-              onDragEnd={this._onDragEndSubgraph}
-            />
-          )}
           {this.props.children}
         </g>
       </svg>
     );
   }
-
-  // Normally, defining a component like this is a recipe for disaster, because the definition will
-  // capture things like this.props at the wrong time and end up failing to rerender when it should.
-  // However, this usage is safe, because the only things that are baked into the component here
-  // are scoped to the lifetime of the containing component, by design.
-  private NodeContainer = (props: React.PropsWithChildren<{ id: string }>) => (
-    <g
-      data-id={props.id}
-      onMouseDown={this._onMouseDownNode}
-      onMouseUp={this._onMouseUpNode}
-      onMouseEnter={this._onMouseEnterNode}
-      onMouseLeave={this._onMouseLeaveNode}
-      onClick={this._onClickNode}
-      className="panzoom-exclude"
-    >
-      {props.children}
-    </g>
-  );
-
-  // See NodeContainer for why this component is safe.
-  private EdgeContainer = (props: React.PropsWithChildren<{ id: string }>) => (
-    <g data-id={props.id} className="panzoom-exclude" onClick={this._onClickEdge}>
-      {props.children}
-    </g>
-  );
 
   private _getGrid(): Required<Grid> {
     const dotSize =
@@ -390,10 +374,8 @@ export class Graph<
       this.setState({
         dragState: {
           nodeId: id,
-          edgeIds: objectEntries(this.props.edges)
-            .filter(([_, { sourceId, targetId }]) => sourceId === id || targetId === id)
-            .map(([id, _]) => id),
           start: { screenX, screenY },
+          last: { screenX, screenY },
         },
       });
     }
@@ -491,6 +473,15 @@ export class Graph<
     const { screenX, screenY } = e;
     const scale = this.transform?.getScale() ?? 1;
 
+    if (this.state.dragState) {
+      this.setState({
+        dragState: {
+          ...this.state.dragState,
+          last: { screenX, screenY },
+        },
+      });
+    }
+
     if (this.state.incompleteEdge) {
       this.setState({
         incompleteEdge: {
@@ -510,7 +501,12 @@ export class Graph<
     }
   };
 
-  private _onDragEndSubgraph = (e: MouseEvent) => {
+  private _onMouseUpDocument = (e: MouseEvent) => {
+    if (this.pan) {
+      this.shouldSkipNextBackgroundClick = !this._isWithinFudgeFactor(e, this.pan.start);
+      this.pan = undefined;
+    }
+
     const { dragState } = this.state;
     if (dragState) {
       if (!this._isWithinFudgeFactor(e, dragState.start)) {
@@ -528,14 +524,7 @@ export class Graph<
           });
         }
       }
-    }
-    this.setState({ dragState: undefined });
-  };
-
-  private _onMouseUpDocument = (e: MouseEvent) => {
-    if (this.pan) {
-      this.shouldSkipNextBackgroundClick = !this._isWithinFudgeFactor(e, this.pan.start);
-      this.pan = undefined;
+      this.setState({ dragState: undefined });
     }
 
     // If we didn't release on a node, stop creation anyway.
@@ -592,3 +581,55 @@ export class Graph<
     document.removeEventListener("mouseup", this._onMouseUpDocument);
   }
 }
+
+interface NodeContainerProps<N extends Node, X extends object> {
+  id: string;
+  node: N;
+  extraProps: X | undefined;
+  contentComponent: React.ComponentType<NodeComponentProps<N> & X>;
+  onMouseDown: (e: React.MouseEvent<SVGGElement>) => void;
+  onMouseUp: (e: React.MouseEvent<SVGGElement>) => void;
+  onMouseEnter: (e: React.MouseEvent<SVGGElement>) => void;
+  onMouseLeave: (e: React.MouseEvent<SVGGElement>) => void;
+  onClick: (e: React.MouseEvent<SVGGElement>) => void;
+}
+
+const NodeContainer = React.memo(
+  <N extends Node, X extends object>(props: NodeContainerProps<N, X>) => (
+    <g
+      data-id={props.id}
+      onMouseDown={props.onMouseDown}
+      onMouseUp={props.onMouseUp}
+      onMouseEnter={props.onMouseEnter}
+      onMouseLeave={props.onMouseLeave}
+      onClick={props.onClick}
+      className="panzoom-exclude"
+    >
+      <props.contentComponent nodeId={props.id} node={props.node} {...(props.extraProps as any)} />
+    </g>
+  ),
+);
+
+interface EdgeContainerProps<N extends Node, E extends Edge, X extends object> {
+  id: string;
+  edge: E;
+  source: N;
+  target: N;
+  extraProps: X | undefined;
+  contentComponent: React.ComponentType<EdgeComponentProps<N, E> & X>;
+  onClick: (e: React.MouseEvent<SVGGElement>) => void;
+}
+
+const EdgeContainer = React.memo(
+  <N extends Node, E extends Edge, X extends object>(props: EdgeContainerProps<N, E, X>) => (
+    <g data-id={props.id} className="panzoom-exclude" onClick={props.onClick}>
+      <props.contentComponent
+        edgeId={props.id}
+        edge={props.edge}
+        source={props.source}
+        target={props.target}
+        {...(props.extraProps as any)}
+      />
+    </g>
+  ),
+);
