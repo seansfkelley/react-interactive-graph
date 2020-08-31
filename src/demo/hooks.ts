@@ -6,21 +6,22 @@ export interface SelectionSet {
   add(id: string): void;
   remove(id: string): void;
   toggle(id: string): void;
-  clear(): void;
-  map<T>(callback: (id: string) => T): T[];
-  forEach(callback: (id: string) => void): void;
+  reset(id?: string): void;
 }
 
-function useForceUpdate() {
-  const [, setNonce] = React.useState(0);
-  return React.useCallback(() => {
-    setNonce((n) => n + 1);
-  }, []);
+function useForceUpdate(): [() => void, unknown] {
+  const [nonce, setNonce] = React.useState(0);
+  return [
+    React.useCallback(() => {
+      setNonce((n) => n + 1);
+    }, []),
+    nonce,
+  ];
 }
 
 export function useSelectionSet(): SelectionSet {
   const [set] = React.useState(() => new Set<string>());
-  const forceUpdate = useForceUpdate();
+  const [forceUpdate, updateNonce] = useForceUpdate();
 
   const count = set.size;
   const has = React.useMemo(() => set.has.bind(set), [set]);
@@ -52,31 +53,15 @@ export function useSelectionSet(): SelectionSet {
     [set, forceUpdate],
   );
 
-  const clear = React.useCallback(() => {
-    if (set.size > 0) {
+  const reset = React.useCallback(
+    (id?: string) => {
       set.clear();
+      if (id != null) {
+        set.add(id);
+      }
       forceUpdate();
-    }
-  }, [set, forceUpdate]);
-
-  const map = React.useCallback(
-    <T extends unknown>(callback: (id: string) => T) => {
-      const array: T[] = [];
-      for (const item of set) {
-        array.push(callback(item));
-      }
-      return array;
     },
-    [set],
-  );
-
-  const forEach = React.useCallback(
-    (callback: (id: string) => void) => {
-      for (const item of set) {
-        callback(item);
-      }
-    },
-    [set],
+    [set, forceUpdate],
   );
 
   const selectionSet = React.useMemo(
@@ -86,11 +71,10 @@ export function useSelectionSet(): SelectionSet {
       add,
       remove,
       toggle,
-      clear,
-      map,
-      forEach,
+      reset,
     }),
-    [count, has, add, remove, toggle, clear, map, forEach],
+    // TODO: updateNonce isn't great. What's the contract this hook should have w/r/t object identity?
+    [count, has, add, remove, toggle, reset, updateNonce],
   );
 
   return selectionSet;

@@ -67,17 +67,17 @@ export function Demo() {
     [gridSnapSize],
   );
 
-  const extraProps = React.useMemo(
-    (): ExtraProps => ({
+  const extraProps = React.useMemo((): ExtraProps => {
+    console.log("recalc");
+    return {
       nodeSelection,
       edgeSelection,
       pathType,
       pathDirection,
       snap,
       dropShadows,
-    }),
-    [nodeSelection, edgeSelection, pathType, pathDirection, snap, dropShadows],
-  );
+    };
+  }, [nodeSelection, edgeSelection, pathType, pathDirection, snap, dropShadows]);
 
   const onCreateEdgeEnd = React.useCallback(
     (_e: React.MouseEvent, { sourceId, targetId }: CreateEdgeEventDetails) => {
@@ -141,18 +141,16 @@ export function Demo() {
           if (event.metaKey || event.shiftKey) {
             nodeSelection.toggle(n.id);
           } else {
-            edgeSelection.clear();
-            nodeSelection.clear();
-            nodeSelection.add(n.id);
+            edgeSelection.reset();
+            nodeSelection.reset(n.id);
           }
         }}
         onClickEdge={(event, e) => {
           if (event.metaKey || event.shiftKey) {
             edgeSelection.toggle(e.id);
           } else {
-            nodeSelection.clear();
-            edgeSelection.clear();
-            edgeSelection.add(e.id);
+            nodeSelection.reset();
+            edgeSelection.reset(e.id);
           }
         }}
         onClickBackground={(event, { x, y }) => {
@@ -162,8 +160,8 @@ export function Demo() {
               [nextId()]: { x, y, width: NODE_SIZE, height: NODE_SIZE },
             }));
           } else {
-            nodeSelection.clear();
-            edgeSelection.clear();
+            nodeSelection.reset();
+            edgeSelection.reset();
           }
         }}
         shouldStartPan={(event) => !event.altKey}
