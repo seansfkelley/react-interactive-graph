@@ -32,7 +32,7 @@
 
 ## optimizations
 
-- clipping out-of-bounds elements
+- clipping out-of-bounds elements (doesn't seem worth it?)
   - naively (axis aligned bounding box)
     - [x] using react state: seems to make the problem worse
     - [ ] direct DOM manipuation
@@ -41,3 +41,4 @@
   - [x] dragging nodes/edges (seems to work nicely!)
   - [ ] incomplete edge
 - [ ] compare to other libraries
+- [x] pure components for each node and edge to reduce render churn

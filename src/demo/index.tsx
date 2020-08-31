@@ -14,8 +14,7 @@ import {
   PathDirection,
   CreateEdgeEventDetails,
 } from "../";
-// import { Graph } from "../Graph";
-import { Graph } from "../Graph2";
+import { Graph } from "../Graph";
 
 import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
