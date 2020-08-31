@@ -19,7 +19,7 @@ import { Graph } from "../Graph";
 import { useSelectionSet } from "./hooks";
 import { useDocumentEvent } from "../hooks";
 import { ControlStrip } from "./ControlStrip";
-import { ExampleType, GENERATE, nextId, NODE_SIZE } from "./exampleData";
+import { ExampleType, GENERATE, nextId } from "./exampleData";
 import { snapToGrid } from "../util";
 import { keyBy } from "./util";
 import {
@@ -156,7 +156,7 @@ export function Demo() {
           if (event.altKey) {
             setNodes((nodes) => ({
               ...nodes,
-              [nextId()]: { x, y, width: NODE_SIZE, height: NODE_SIZE },
+              [nextId()]: { x, y },
             }));
           } else {
             nodeSelection.reset();

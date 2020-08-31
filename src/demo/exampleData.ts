@@ -2,8 +2,6 @@ import type { Node, Edge } from "../";
 
 let _id = 0;
 
-export const NODE_SIZE = 50;
-
 export function nextId() {
   return (++_id).toString();
 }
@@ -25,10 +23,10 @@ export const GENERATE: Record<
 > = {
   [ExampleType.SIMPLE]: () => {
     const nodes: WithId<Node>[] = [
-      { id: nextId(), x: -100, y: 100, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: -100, y: -100, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: 100, y: 100, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: 100, y: -100, width: NODE_SIZE, height: NODE_SIZE },
+      { id: nextId(), x: -100, y: 100 },
+      { id: nextId(), x: -100, y: -100 },
+      { id: nextId(), x: 100, y: 100 },
+      { id: nextId(), x: 100, y: -100 },
     ];
 
     const edges: WithId<Edge>[] = [
@@ -44,16 +42,16 @@ export const GENERATE: Record<
   },
   [ExampleType.DAG]: () => {
     const nodes: WithId<Node>[] = [
-      { id: nextId(), x: 0, y: -150, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: -75, y: 0, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: 150, y: 0, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: 150, y: 150, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: -150, y: 150, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: 0, y: 150, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: 75, y: 300, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: 75, y: 450, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: -75, y: 450, width: NODE_SIZE, height: NODE_SIZE },
-      { id: nextId(), x: 225, y: 450, width: NODE_SIZE, height: NODE_SIZE },
+      { id: nextId(), x: 0, y: -150 },
+      { id: nextId(), x: -75, y: 0 },
+      { id: nextId(), x: 150, y: 0 },
+      { id: nextId(), x: 150, y: 150 },
+      { id: nextId(), x: -150, y: 150 },
+      { id: nextId(), x: 0, y: 150 },
+      { id: nextId(), x: 75, y: 300 },
+      { id: nextId(), x: 75, y: 450 },
+      { id: nextId(), x: -75, y: 450 },
+      { id: nextId(), x: 225, y: 450 },
     ];
     const edges: WithId<Edge>[] = [
       { id: nextId(), sourceId: nodes[0].id, targetId: nodes[1].id },
@@ -77,8 +75,6 @@ export const GENERATE: Record<
         id: nextId(),
         x: Math.random() * 1000 - 500,
         y: Math.random() * 1000 - 500,
-        width: NODE_SIZE,
-        height: NODE_SIZE,
       }));
 
     const edges: WithId<Edge>[] = Array(30)
@@ -98,8 +94,6 @@ export const GENERATE: Record<
         id: nextId(),
         x: Math.random() * 1000 - 500,
         y: Math.random() * 1000 - 500,
-        width: NODE_SIZE,
-        height: NODE_SIZE,
       }));
 
     const edges: WithId<Edge>[] = Array(200)

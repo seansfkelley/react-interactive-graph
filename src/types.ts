@@ -3,10 +3,7 @@ export interface Position {
   y: number;
 }
 
-export interface Node extends Position {
-  width: number;
-  height: number;
-}
+export interface Node extends Position {}
 
 export interface Edge {
   sourceId: string;
